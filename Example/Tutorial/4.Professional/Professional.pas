@@ -125,7 +125,7 @@ Var
  FieldLog:AnimeLog;
  StopGame:Boolean=False;
 
- Procedure KeyDeal(obj:pAnimeObj;tag:pAnimeTag;key,press,release:Longint);
+ Procedure KeyDeal(obj:pAnimeObj;tag:pAnimeTag;key,press,release:Longint);  //若弹起空格则停止繁衍或开始繁衍
  Begin
   if (key=32)and(release=1) then StopGame:=Not StopGame Else
   if key=27 then Halt
