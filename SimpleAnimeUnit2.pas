@@ -2504,7 +2504,7 @@ begin
  tmpobj:=RegObj^; tmptag:=RegTag^;
  tmptag.Process; tmpobj.Process(tmptag);
  _inner:=ord(tmpobj.inner(y,x)); if _inner<>LastInner then inc(_inner,2);
- MouseEvent(RegObj,RegTag,x,y,button,_inner,press,release);
+ MouseEvent(RegObj,RegTag,y,x,button,_inner,press,release);
  LastInner:=_inner and 1
 end;
 

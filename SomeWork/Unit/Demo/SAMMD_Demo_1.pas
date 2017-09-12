@@ -17,7 +17,7 @@ Begin
                                           //反向动力学的ccd算法计算有问题
                                           //无物理引擎
 
- Model.RegisterMotion('DSG',@Motion);     //注册动作并以'DSF'作为代号
+ Model.RegisterMotion('DSG',@Motion);     //注册动作并以'DSG'作为代号
                                           //规则同mmd仅应用同名动作
  Repeat
   Frame:=DeltaTime*3 div 100;             //每秒30帧
