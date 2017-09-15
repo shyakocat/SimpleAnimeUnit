@@ -5,7 +5,7 @@
 unit SimpleAnimeUnit2;
 
 interface
-uses math,Windows,SysUtils,Classes,ptc,gl,glu,FPImage,MMSystem,
+uses math,Windows,Commdlg,SysUtils,Classes,ptc,gl,glu,FPImage,MMSystem,
      FPReadJPEG,FPReadPNG,FPReadBMP,FPReadTGA,FPREADGIF,
      FPWriteJPEG,FPWritePNG,FPWriteBMP,FPWriteTGA;
 
@@ -21,6 +21,7 @@ var
  Event:IPTCEvent;
 
  ConsoleUsing:Boolean;
+ ConsoleHWND:HWND;
  FreshLimit:Longint=0;
  LastFresh:Int64;
  UpdateFPS:Int64;
@@ -408,12 +409,23 @@ var
  ProgramStart:int64;
  MusicId:longint;
 
+const
+ sf_Open=True;
+ sf_Save=False;
+
 var
  Main:Stage;
 
 function DeltaTime:Int64;
 
 function GetFile(const regex:ansistring):SList;
+
+Function SelectFile(Open:Boolean):Ansistring;
+Function SelectFile(const Entry:SList;Open:Boolean):Ansistring;
+Function SelectFile(const Entry:SList;Ext:Pchar;Open:Boolean):Ansistring;
+
+Procedure ExeFile(Const S:Ansistring);
+Procedure OpenFile(Const S:Ansistring);
 
 function BeginThread(p:TProcedure):Dword;
 procedure EndThread(tid:Dword);
@@ -739,6 +751,68 @@ begin
  CloseHandle(tid)
 end;
 
+Function SelectFile(Open:Boolean):Ansistring;
+Var Temp:SList;
+Begin
+ Temp.Clear;
+ Temp.Pushback('All files (*.*)'#0'*.*'#0);
+ Result:=SelectFile(Temp,#0,Open);
+ Temp.Clear;
+End;
+
+Function SelectFile(const Entry:SList;Open:Boolean):Ansistring;
+Begin
+ Exit(SelectFile(Entry,#0,Open))
+End;
+
+Function SelectFile(const Entry:SList;Ext:Pchar;Open:Boolean):Ansistring;
+Var
+ NameRec:OpenFileName;
+ Filter:Ansistring='';
+ FName:Array[0..255]of Char;
+ i:Longint;
+Begin
+ FillChar(NameRec,Sizeof(NameRec),0);
+ FName[0]:=#0;
+ For i:=1 to Entry.Size Do
+ Filter:=Filter+Entry.Items[i];
+ Filter:=Filter+#0;
+ With NameRec Do
+ Begin
+  LStructSize:=SizeOf(NameRec);
+  HWndOwner:=ConsoleHwnd;
+  LpStrFilter:=PChar(Filter);
+  LpStrFile:=@FName;
+  NMaxFile:=255;
+  Flags:=OFN_Explorer Or OFN_HideReadOnly;
+  If Open Then Flags:=Flags Or OFN_FileMustExist;
+  LpStrDefExt:=Ext
+ End;
+ If Open Then GetOpenFileName(@NameRec)
+         Else GetSaveFileName(@NameRec);
+ Result:=Ansistring(FName)
+End;
+
+Procedure ExeFile(Const S:Ansistring);
+Begin
+ WinExec(Pchar(S),SW_SHOW)
+End;
+
+Procedure OpenFile(Const S:Ansistring);
+Var
+ Path:Ansistring;
+ i:Longint;
+Begin
+ Path:=S;
+ For i:=Length(Path)Downto 1 Do
+ if (Path[i]='/')Or(Path[i]='\') Then
+ Begin
+  Delete(Path,i,Length(Path));
+  Break
+ End;
+ ShellExecute(0,'open',Pchar(S),nil,Pchar(Path),SW_SHOW)
+End;
+
 function OpenMusic(const path:ansistring):longint;
 var MStr:ansistring;
 begin
@@ -921,7 +995,8 @@ begin
  Console.Option('intercept window close');
  Console.Open(title,Width,Height,Format);
  Surface:=TPTCSurfaceFactory.CreateNew(Width,Height,Format);
- ConsoleUsing:=True
+ ConsoleUsing:=True;
+ ConsoleHWND:=FindWindow(nil,PChar(Title))
 end;
 
 procedure Endit;
