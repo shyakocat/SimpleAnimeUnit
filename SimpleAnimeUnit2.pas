@@ -418,6 +418,8 @@ var
 
 function DeltaTime:Int64;
 
+Function RootDirectory:Ansistring;
+
 function GetFile(const regex:ansistring):SList;
 
 Function SelectFile(Open:Boolean):Ansistring;
@@ -798,9 +800,18 @@ Begin
  WinExec(Pchar(S),SW_SHOW)
 End;
 
+Function RootDirectory:Ansistring;
+Var
+ Tmp:Array[0..500]of char;
+Begin
+ GetCurrentDirectory(500,Tmp);
+ Exit(Ansistring(Tmp))
+End;
+
 Procedure OpenFile(Const S:Ansistring);
 Var
  Path:Ansistring;
+ PathFlag:Boolean=True;
  i:Longint;
 Begin
  Path:=S;
@@ -808,8 +819,10 @@ Begin
  if (Path[i]='/')Or(Path[i]='\') Then
  Begin
   Delete(Path,i,Length(Path));
+  PathFlag:=False;
   Break
  End;
+ If PathFlag Then Path:=RootDirectory;
  ShellExecute(0,'open',Pchar(S),nil,Pchar(Path),SW_SHOW)
 End;
 
