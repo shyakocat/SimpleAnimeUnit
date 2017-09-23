@@ -754,7 +754,7 @@ Var
 procedure SaveSchedule;
 const TimeBorder=300;
 Var
- absX,absY,X,Y,Z,i,j,Key,KeyRelease:longint;
+ absX,absY,X,Y,Z,MPress,MRelease,i,j,Key,KeyPress,KeyRelease:longint;
  PartTmp,PartStd,PartDelta:Int64;
 
  theta,w,h,Len,Lambda,_sin,_cos,Bx,By:real;
@@ -822,7 +822,8 @@ begin
   PartStd:=DeltaTime;
   PartDelta:=PartStd-PartTmp;
 
-  TestMouseAndKeyPress(X,Y,Z,Key,KeyRelease);
+  TestMouse(X,Y,Z,MPress,MRelease);
+  TestKey(Key,KeyPress,KeyRelease);
   if x<>-1 then
   begin
    absX:=Y;
@@ -892,7 +893,7 @@ end;
 procedure LoadSchedule;
 const TimeBorder=300;
 Var
- absX,absY,X,Y,Z,i,j,Key,LoadObj:longint;
+ absX,absY,X,Y,Z,MPress,MRelease,i,j,Key,KeyPress,KeyRelease,LoadObj:longint;
  PartTmp,PartStd,PartDelta:Int64;
 
  theta,w,h,Len,Lambda,_sin,_cos,Bx,By:real;
@@ -932,7 +933,8 @@ begin
   PartStd:=DeltaTime;
   PartDelta:=PartStd-PartTmp;
 
-  TestMouseAndKey(X,Y,Z,Key);
+  TestMouse(X,Y,Z,MPress,MRelease);
+  TestKey(Key,KeyPress,KeyRelease);
   if x<>-1 then
   begin
    absX:=Y;

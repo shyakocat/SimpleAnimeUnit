@@ -20,7 +20,6 @@ var
  Surface:IPTCSurface;
  Event:IPTCEvent;
 
- ConsoleUsing:Boolean;
  ConsoleHWND:HWND;
  FreshLimit:Longint=0;
  LastFresh:Int64;
@@ -50,6 +49,7 @@ type
   property Arr[i:Longint]:T read GetValue write SetValue;default;
  end;
  SList=specialize List<ansistring>;
+ EList=Specialize List<IPTCEvent>;
 
 
 //Custom Type
@@ -374,6 +374,7 @@ type
   procedure Display;
   procedure DisplayBlend(tp:shortint);
   procedure Communication;
+  Procedure Communication(Const L:EList);
  end;
 
 
@@ -440,14 +441,18 @@ procedure PauseMusic(mid:longint);
 procedure ResumeMusic(mid:longint);
 procedure StopMusic(mid:longint);
 
-procedure GetMouse(var x,y,button:longint);
-procedure GetKey(var code:longint);
-procedure GetKey(var code:longint;var press,shift,alt,ctrl:boolean);
-procedure TestMouse(var x,y,button:longint);
-procedure TestKey(var code:longint);
-procedure TestKey(var code:longint;var press,shift,alt,ctrl:boolean);
-procedure TestMouseAndKey(var x,y,button,key:longint);
-procedure TestMouseAndKeyPress(var x,y,button,key,krelease:Longint);
+Function ConsoleUsing:Boolean;
+
+Function GetMouse(var x,y,button,press,release:longint):Boolean;
+Function GetKey(var key,press,release:longint):Boolean;
+Function GetKey(var key,press,release,shift,alt,ctrl:Longint):Boolean;
+Function TestMouse(var x,y,button,press,release:longint):Boolean;
+Function TestKey(var key,press,release:longint):Boolean;
+Function TestKey(var key,press,release,shift,alt,ctrl:Longint):Boolean;
+Function GetKeyPress:Boolean;
+Function TestKeyPress:Boolean;
+
+Function GetEvent:EList;
 
 procedure ImageToSAGFormat(const g:Graph;const path:AnsiString);
 procedure ImagesToSAGFormat(const gs:GroupGraph;const path:AnsiString);
@@ -878,7 +883,7 @@ begin
  mciSendString(pchar('stop '+MStr),nil,0,0)
 end;
 
- Function GetMouse(B:TPTCMouseButton):Longint;
+ Function GetMouseCode(B:TPTCMouseButton):Longint;
  Begin
   if B=PTCMouseButton1 then Exit(1);  //Left Mouse
   if B=PTCMouseButton2 then Exit(2);  //Right Mouse
@@ -888,115 +893,190 @@ end;
   Exit(0)
  End;
 
- Function GetMouse(Const S:TPTCMouseButtonState):Longint;
+ Function GetMouseCode(Const S:TPTCMouseButtonState):Longint;
  Var I:TPTCMouseButton;
  Begin
   Result:=0;
-  For i in S Do Result:=Result Or GetMouse(i)
+  For i in S Do Result:=Result Or GetMouseCode(i)
  End;
 
 
-procedure GetMouse(var x,y,button:longint);
-var
- Event:IPTCEvent;
-begin
- Console.NextEvent(event,True,[PTCMouseEvent]);
- x:=(event as IPTCMouseEvent).x;
- y:=(event as IPTCMouseEvent).y;
- button:=GetMouse((event as IPTCMouseEvent).ButtonState)
-end;
-
-procedure GetKey(var code:longint);
-var
- Key:IPTCKeyEvent;
-begin
- Console.ReadKey(key);
- code:=key.Code
-end;
-
-procedure GetKey(var code:longint;var press,shift,alt,ctrl:boolean);
-var
- key:IPTCKeyEvent;
-begin
- Console.ReadKey(key);
- code:=Key.Code;
- Press:=Key.Press;
- Shift:=Key.Shift;
- Alt:=Key.Alt;
- Ctrl:=Key.Control
-end;
-
-procedure TestMouse(var x,y,button:longint);
-var
- Event:IPTCEvent=nil;
-begin
- Console.NextEvent(event,False,PTCAnyEvent);
- if not Supports(Event,IPTCMouseEvent) then begin x:=-1; y:=-1; button:=-1; exit end;
- x:=(event as IPTCMouseEvent).x;
- y:=(event as IPTCMouseEvent).y;
- button:=GetMouse((event as IPTCMouseEvent).ButtonState);
-end;
-
-procedure TestKey(var code:longint);
-var
- Event:IPTCEvent=nil;
-begin
- Console.NextEvent(event,False,PTCAnyEvent);
- if Not Supports(Event,IPTCKeyEvent) then begin code:=-1; exit end;
- code:=(Event as IPTCKeyEvent).code
-end;
-
-procedure TestKey(var code:longint;var press,shift,alt,ctrl:boolean);
-var
- Event:IPTCEvent=nil;
-begin
- Console.NextEvent(event,False,PTCAnyEvent);
- if Not Supports(Event,IPTCKeyEvent) then begin code:=-1; shift:=False; alt:=False; ctrl:=False; exit end;
-  code:=(Event as IPTCKeyEvent).code;
- press:=(Event as IPTCKeyEvent).press;
- shift:=(Event as IPTCKeyEvent).shift;
-   alt:=(Event as IPTCKeyEvent).alt;
-  ctrl:=(Event as IPTCKeyEvent).control
-end;
-
-procedure TestMouseAndKey(var x,y,button,key:longint);
-var
- Event:IPTCEvent=nil;
-begin
- Console.NextEvent(event,False,PTCAnyEvent);
- x:=-1; y:=-1; button:=-1; key:=-1;
- if Supports(Event,IPTCMouseEvent) then
- begin
-  x:=(event as IPTCMouseEvent).x;
-  y:=(event as IPTCMouseEvent).y;
-  button:=GetMouse((event as IPTCMouseEvent).ButtonState)
- end
- else
- if Supports(Event,IPTCKeyEvent) then
- begin
-  key:=(Event as IPTCKeyEvent).code
- end
-end;
-
-procedure TestMouseAndKeyPress(var x,y,button,key,krelease:Longint);
-Var
- Event:IPTCEvent=nil;
+Function ConsoleUsing:Boolean;
 Begin
- Console.NextEvent(event,False,PTCAnyEvent);
- x:=-1; y:=-1; button:=-1;
- key:=-1; krelease:=-1;
- if Supports(Event,IPTCMouseEvent) then
- begin
-  x:=(event as IPTCMouseEvent).x;
-  y:=(event as IPTCMouseEvent).y;
-  button:=GetMouse((event as IPTCMouseEvent).ButtonState)
- end
- else
- if Supports(Event,IPTCKeyEvent) then
- begin
-  key:=(Event as IPTCKeyEvent).code;
-  krelease:=Ord((Event as IPTCKeyEvent).Release)
- end
+ If (Not Assigned(Console))Or(Console=Nil) Then Exit(False);
+ if Console.PeekEvent(False,[PTCCloseEvent])is IPTCCloseEvent then
+ Begin EndIt; Exit(False) End;
+ Exit(True)
+End;
+
+
+Function GetMouse(Var x,y,button,press,release:Longint):Boolean;
+Var
+ TmpB:IPTCMouseButtonEvent;
+ tmpM:IPTCMouseEvent;
+Begin
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,True,[PTCMouseEvent,PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
+ If Supports(Event,IPTCMouseEvent) Then
+ Begin
+  If Supports(Event,IPTCMouseButtonEvent) Then
+  Begin
+   tmpB:=Event as IPTCMouseButtonEvent;
+   x:=tmpB.X;
+   y:=tmpB.Y;
+   button:=GetMouseCode(tmpB.button);
+   press:=Ord(tmpB.Press);
+   release:=Ord(tmpB.Release)
+  End
+  Else
+  Begin
+   tmpM:=Event as IPTCMouseEvent;
+   tmpM:=Event as IPTCMouseEvent;
+   x:=tmpM.X;
+   y:=tmpM.Y;
+   button:=GetMouseCode(tmpM.ButtonState);
+   press:=0;
+   release:=0
+  End
+ End;
+ Exit(True)
+End;
+
+Function TestMouse(Var x,y,button,press,release:Longint):Boolean;
+Var
+ TmpB:IPTCMouseButtonEvent;
+ tmpM:IPTCMouseEvent;
+Begin
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,False,[PTCMouseEvent,PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
+ If Supports(Event,IPTCMouseEvent) Then
+ Begin
+  If Supports(Event,IPTCMouseButtonEvent) Then
+  Begin
+   tmpB:=Event as IPTCMouseButtonEvent;
+   x:=tmpB.X;
+   y:=tmpB.Y;
+   button:=GetMouseCode(tmpB.button);
+   press:=Ord(tmpB.Press);
+   release:=Ord(tmpB.Release)
+  End
+  Else
+  Begin
+   tmpM:=Event as IPTCMouseEvent;
+   tmpM:=Event as IPTCMouseEvent;
+   x:=tmpM.X;
+   y:=tmpM.Y;
+   button:=GetMouseCode(tmpM.ButtonState);
+   press:=0;
+   release:=0
+  End
+ End;
+ Exit(True)
+End;
+
+
+Function GetKey(Var Key,press,release:Longint):Boolean;
+var
+ tmpK:IPTCKeyEvent;
+Begin
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,True,[PTCKeyEvent,PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
+ if Supports(Event,IPTCKeyEvent) Then
+ Begin
+  tmpK:=Event as IPTCKeyEvent;
+  key:=tmpK.Code;
+  press:=ord(tmpK.Press);
+  release:=Ord(tmpK.Release)
+ End;
+ Exit(True)
+End;
+
+Function TestKey(Var Key,press,release:Longint):Boolean;
+var
+ tmpK:IPTCKeyEvent;
+Begin
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,False,[PTCKeyEvent,PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
+ if Supports(Event,IPTCKeyEvent) Then
+ Begin
+  tmpK:=Event as IPTCKeyEvent;
+  key:=tmpK.Code;
+  press:=ord(tmpK.Press);
+  release:=Ord(tmpK.Release)
+ End;
+ Exit(True)
+End;
+
+Function GetKey(var key,press,release,shift,alt,ctrl:Longint):Boolean;
+Var
+ TmpK:IPTCKeyEvent;
+Begin
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,True,[PTCKeyEvent,PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
+ if Supports(Event,IPTCKeyEvent) Then
+ Begin
+  tmpK:=Event as IPTCKeyEvent;
+  key:=tmpK.Code;
+  press:=ord(tmpK.Press);
+  release:=Ord(tmpK.Release);
+  shift:=Ord(TmpK.Shift);
+  alt:=Ord(TmpK.Alt);
+  ctrl:=Ord(TmpK.Control);
+ End;
+ Exit(True)
+End;
+
+Function TestKey(var key,press,release,shift,alt,ctrl:Longint):Boolean;
+Var
+ TmpK:IPTCKeyEvent;
+Begin
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,False,[PTCKeyEvent,PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
+ if Supports(Event,IPTCKeyEvent) Then
+ Begin
+  tmpK:=Event as IPTCKeyEvent;
+  key:=tmpK.Code;
+  press:=ord(tmpK.Press);
+  release:=Ord(tmpK.Release);
+  shift:=Ord(TmpK.Shift);
+  alt:=Ord(TmpK.Alt);
+  ctrl:=Ord(TmpK.Control);
+ End;
+ Exit(True)
+End;
+
+Function GetKeyPress:Boolean;
+Begin
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,True,[PTCKeyEvent,PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
+ Exit(Supports(Event,IPTCKeyEvent))
+End;
+
+Function TestKeyPress:Boolean;
+Begin
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,False,[PTCKeyEvent,PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
+ Exit(Supports(Event,IPTCKeyEvent))
+End;
+
+
+Function GetEvent:EList;
+Begin
+ Result.Clear;
+ If Not ConsoleUsing Then Exit;
+ while Console.NextEvent(Event,False,PTCAnyEvent) do
+ Begin
+  If Supports(Event,IPTCCloseEvent) Then Begin EndIt; Result.Clear; Exit End;
+  Result.Pushback(Event)
+ End
 End;
 
 
@@ -1008,14 +1088,13 @@ begin
  Console.Option('intercept window close');
  Console.Open(title,Width,Height,Format);
  Surface:=TPTCSurfaceFactory.CreateNew(Width,Height,Format);
- ConsoleUsing:=True;
  ConsoleHWND:=FindWindow(nil,PChar(Title))
 end;
 
 procedure Endit;
 begin
  if Assigned(Console) then Console.Close;
- ConsoleUsing:=False
+ Console:=Nil
 end;
 
 //Object-BaseGraph-Begin
@@ -2638,8 +2717,6 @@ end;
 procedure Lock;
 begin
  if Not ConsoleUsing then Exit;
- if Console.PeekEvent(False,[PTCCloseEvent])is IPTCCloseEvent then
- Begin Endit; Exit End;
  Screen.Create;
  Screen.Width:=Surface.Width;
  Screen.Height:=Surface.Height;
@@ -2659,8 +2736,7 @@ begin
  tmp:=DeltaTime-LastFresh;
  if tmp<FreshLimit then sleep(FreshLimit-tmp);
  inc(LastFresh,tmp);
- if Console.PeekEvent(False,[PTCCloseEvent])is IPTCCloseEvent then
- Begin Endit; Exit End;
+ if Not ConsoleUsing then Exit;
  surface.unlock;
  surface.copy(console);
  console.update;
@@ -3039,14 +3115,10 @@ var
  tmpB:IPTCMouseButtonEvent;
  tmpK:IPTCKeyEvent;
  _x,_y,_button,_key,_press,_release:longint;
- App:Boolean=False;
 begin
- if Console.PeekEvent(False,[PTCCloseEvent])is IPTCCloseEvent then
- Begin EndIt; Exit End;
+ If Not ConsoleUsing Then Exit;
  while Console.NextEvent(Event,False,PTCAnyEvent) do
  begin
-  App:=True;
-  for i:=1 to Member.Size do Member.Items[i].Talk.DealNon();
   if Supports(Event,IPTCMouseEvent) then
    begin
     if Supports(Event,IPTCMouseButtonEvent) then
@@ -3054,7 +3126,7 @@ begin
      tmpB:=Event as IPTCMouseButtonEvent;
      _x:=tmpB.X;
      _y:=tmpB.Y;
-     _button:=GetMouse(tmpB.Button);
+     _button:=GetMouseCode(tmpB.Button);
      _press:=Ord(tmpB.Press);
      _release:=Ord(tmpB.Release)
     End
@@ -3063,7 +3135,7 @@ begin
      tmpM:=Event as IPTCMouseEvent;
      _x:=tmpM.X;
      _y:=tmpM.Y;
-     _button:=GetMouse(tmpM.ButtonState);
+     _button:=GetMouseCode(tmpM.ButtonState);
      _press:=0;
      _release:=0;
     End;
@@ -3082,15 +3154,59 @@ begin
      if Member.Items[i].Role.Visible then
       Member.Items[i].Talk.DealKey(_key,_press,_release)
    end;
-{
-  if Event is IPTCCloseEvent then
-  Begin
-   EndIt;
-   Halt
-  End
-}
  end;
- if not App then for i:=1 to Member.Size do Member.Items[i].Talk.DealNon()
+ for i:=1 to Member.Size do Member.Items[i].Talk.DealNon()
+end;
+
+procedure Stage.Communication(Const L:EList);
+var
+ i,j:longint;
+ tmpM:IPTCMouseEvent;
+ tmpB:IPTCMouseButtonEvent;
+ tmpK:IPTCKeyEvent;
+ _x,_y,_button,_key,_press,_release:longint;
+begin
+ If Not ConsoleUsing Then Exit;
+ For J:=1 to L.Size Do
+ begin
+  Event:=L[J];
+  if Supports(Event,IPTCMouseEvent) then
+   begin
+    if Supports(Event,IPTCMouseButtonEvent) then
+    Begin
+     tmpB:=Event as IPTCMouseButtonEvent;
+     _x:=tmpB.X;
+     _y:=tmpB.Y;
+     _button:=GetMouseCode(tmpB.Button);
+     _press:=Ord(tmpB.Press);
+     _release:=Ord(tmpB.Release)
+    End
+    Else
+    Begin
+     tmpM:=Event as IPTCMouseEvent;
+     _x:=tmpM.X;
+     _y:=tmpM.Y;
+     _button:=GetMouseCode(tmpM.ButtonState);
+     _press:=0;
+     _release:=0;
+    End;
+    for i:=1 to Member.Size do
+     if Member.Items[i].Role.Visible then
+      Member.Items[i].Talk.DealMouse(_x,_y,_button,_press,_release)
+   end
+  else
+  if Supports(Event,IPTCKeyEvent) then
+   begin
+    tmpK:=Event as IPTCKeyEvent;
+    _key:=tmpK.Code;
+    _press:=ord(tmpK.Press);
+    _release:=Ord(tmpK.Release);
+    for i:=1 to Member.Size do
+     if Member.Items[i].Role.Visible then
+      Member.Items[i].Talk.DealKey(_key,_press,_release)
+   end;
+ end;
+ for i:=1 to Member.Size do Member.Items[i].Talk.DealNon()
 end;
 
 destructor Stage.Free;

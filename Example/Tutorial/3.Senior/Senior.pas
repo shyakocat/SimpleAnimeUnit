@@ -61,5 +61,5 @@ Begin
                                   //因为文本变了相关的信息也要变，同理改变大小要c.SetSize()
   c.WriteTo(Screen,1,1);          //把帧数写到Screen的(1,1)位置上
   UnLock;
- Until (Not ConsoleUsing)Or(Console.Keypressed)
+ Until (Not ConsoleUsing)Or(TestKeyPress)
 End.

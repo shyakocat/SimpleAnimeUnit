@@ -13,5 +13,5 @@ Begin
  Lock;                    //绘图前必须锁定像素
  DrawTo(a,Screen,0,0);    //把图片a绘制到Screen上，Screen也是Graph，且其指针指向屏幕像素
  UnLock;                  //绘制后解锁才能更新屏幕的内容
- Console.ReadKey          //等待用户按键
+ GetKeyPress              //等待用户按键
 End.

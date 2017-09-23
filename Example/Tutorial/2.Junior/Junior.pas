@@ -24,7 +24,7 @@ Begin
   ScreenClear(Color_White);  //把Screen全填充成白色，Color是一个包含BGRA的类型，Color_White即(r=g=b=a=255)
   Main.Display;              //把Main这个Stage中的内容依次绘制出来
   UnLock;
- Until (Not ConsoleUsing)Or(Console.Keypressed)    //直到用户按键后终止
+ Until (Not ConsoleUsing)Or(TestKeypress)    //直到用户按键后终止
                                  //Console.KeyPressed是不好的，不建议在SA2下直接访问PTC的内容
                                  //因为Console（窗口）一旦关闭后，使用Console.KeyPressed会报错
                                  //所以在那之前使用SA2提供的ConsoleUsing来检测窗口的使用情况
