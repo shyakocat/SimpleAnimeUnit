@@ -142,37 +142,37 @@ begin
  Run.Assign('result',0);
 end;
 
- procedure exit_key(obj:pAnimeObj;tag:pAnimeTag;key,press,release:longint);
+ procedure exit_key(obj:pAnimeObj;tag:pAnimeTag;Const E:SAKeyEvent);
  begin
-  if Release<>1 then Exit;
-  if key=27 then halt
+  if Not E.Release then Exit;
+  if E.key=27 then halt
  end;
 
- procedure exitsave_key(obj:pAnimeObj;tag:pAnimeTag;key,press,release:longint);
+ procedure exitsave_key(obj:pAnimeObj;tag:pAnimeTag;Const E:SAKeyEvent);
  begin
-  if Release<>1 then Exit;
-  if key=27 then halt;
-  if key=83 then SaveSchedule
+  if Not E.Release then Exit;
+  if E.key=27 then halt;
+  if E.key=83 then SaveSchedule
  end;
 
- procedure text_mouse(obj:pAnimeObj;tag:pAnimeTag;x,y,button,inner,press,release:longint);
+ procedure text_mouse(obj:pAnimeObj;tag:pAnimeTag;Const E:SAMouseEvent;inner:Shortint);
  begin
-  if (button=1)and(press=1) then ClickText:=True
+  if (E.button=1)and(E.press) then ClickText:=True
  end;
 
- procedure text_key(obj:pAnimeObj;tag:pAnimeTag;key,press,release:longint);
+ procedure text_key(obj:pAnimeObj;tag:pAnimeTag;Const E:SAKeyEvent);
  begin
-  if Release<>1 then Exit;
-  if key=27 then halt;
-  if (key=10)or(key=32)or(key=90) then ClickText:=True;
-  if key=83 then SaveSchedule
+  if Not E.Release then Exit;
+  if E.key=27 then halt;
+  if (E.key=10)or(E.key=32)or(E.key=90) then ClickText:=True;
+  if E.key=83 then SaveSchedule
  end;
 
- procedure select_mouse(obj:pAnimeObj;tag:pAnimeTag;x,y,button,inner,press,release:longint);
+ procedure select_mouse(obj:pAnimeObj;tag:pAnimeTag;Const E:SAMouseEvent;inner:ShortInt);
  begin
   if inner=3 then obj^.Alpha:=0.85 else
   if inner=2 then obj^.Alpha:=0.5;
-  if (inner and 1=1)and(button=1)and(press=1) then obj^.Alpha:=1
+  if (inner and 1=1)and(E.button=1)and(E.press) then obj^.Alpha:=1
  end;
 
 procedure DialogInit(c:Color;const a:real);
@@ -239,6 +239,7 @@ begin
  begin
   BackGround.AttachAnime(1,Grad_DisAppear(tp_Sin,700));
   Repeat
+   If Not ConsoleUsing Then Halt;
    Lock;
    DisplayMain;
    UnLock
@@ -259,6 +260,7 @@ begin
 
  BackGround.AttachAnime(1,Grad_Appear(tp_Sin,700));
  Repeat
+  If Not ConsoleUsing Then Halt;
   Lock;
   DisplayMain;
   UnLock
@@ -328,6 +330,7 @@ begin
  end;
 
  Repeat
+  If Not ConsoleUsing Then Halt;
   Lock;
   DisplayMain;
   UnLock
@@ -364,6 +367,7 @@ begin
   UnLock;
 
   Repeat
+   If Not ConsoleUsing Then Halt;
    Console.NextEvent(Event,True,PTCAnyEvent);
    if Supports(Event,IPTCMouseEvent)and(PTCMouseButton1 in (Event as IPTCMouseEvent).ButtonState) then break;
    if Supports(Event,IPTCKeyEvent)and((Event as IPTCKeyEvent).Press) then
@@ -428,6 +432,8 @@ begin
 
   Repeat
 
+   If Not ConsoleUsing Then Halt;
+
    textp:=round(Lim/_TotTime*(DeltaTime-_StdTime));
    textp:=min(textp,Length(Sclip));
 
@@ -469,6 +475,8 @@ begin
  end;
 
  Repeat
+
+  If Not ConsoleUsing Then Halt;
 
   Dialog.Communication;
 
@@ -627,6 +635,8 @@ begin
  PassTime:=0;
 
  Repeat
+  If Not ConsoleUsing Then Halt;
+
   Selection.Communication;
 
   RegTime:=DeltaTime;
@@ -754,7 +764,9 @@ Var
 procedure SaveSchedule;
 const TimeBorder=300;
 Var
- absX,absY,X,Y,Z,MPress,MRelease,i,j,Key,KeyPress,KeyRelease:longint;
+ tmpM:SAMouseEvent;
+ tmpK:SAKeyEvent;
+ absX,absY,X,Y,Z,i,j,Key,KeyRelease:longint;
  PartTmp,PartStd,PartDelta:Int64;
 
  theta,w,h,Len,Lambda,_sin,_cos,Bx,By:real;
@@ -818,12 +830,16 @@ begin
  PartDelta:=0;
  Repeat
 
+  If Not ConsoleUsing Then Halt;
+
   PartTmp:=PartStd;
   PartStd:=DeltaTime;
   PartDelta:=PartStd-PartTmp;
 
-  TestMouse(X,Y,Z,MPress,MRelease);
-  TestKey(Key,KeyPress,KeyRelease);
+  TestMouse(tmpM);
+  TestKey(tmpK);
+  X:=TmpM.X; Y:=TmpM.Y; Z:=TmpM.Button;
+  Key:=TmpK.Key; KeyRelease:=Ord(TmpK.Release);
   if x<>-1 then
   begin
    absX:=Y;
@@ -893,7 +909,9 @@ end;
 procedure LoadSchedule;
 const TimeBorder=300;
 Var
- absX,absY,X,Y,Z,MPress,MRelease,i,j,Key,KeyPress,KeyRelease,LoadObj:longint;
+ tmpM:SAMouseEvent;
+ tmpK:SAKeyEvent;
+ absX,absY,X,Y,Z,i,j,Key,KeyRelease,LoadObj:longint;
  PartTmp,PartStd,PartDelta:Int64;
 
  theta,w,h,Len,Lambda,_sin,_cos,Bx,By:real;
@@ -929,12 +947,16 @@ begin
  PartDelta:=0;
  Repeat
 
+  If Not ConsoleUsing Then Halt;
+
   PartTmp:=PartStd;
   PartStd:=DeltaTime;
   PartDelta:=PartStd-PartTmp;
 
-  TestMouse(X,Y,Z,MPress,MRelease);
-  TestKey(Key,KeyPress,KeyRelease);
+  TestMouse(tmpM);
+  TestKey(tmpK);
+  X:=tmpM.X; Y:=tmpM.Y; Z:=tmpM.Button;
+  Key:=TmpK.Key; KeyRelease:=Ord(TmpK.Release);
   if x<>-1 then
   begin
    absX:=Y;
@@ -1056,34 +1078,34 @@ begin
  halt
 end;
 
- procedure SelStart(obj:pAnimeObj;tag:pAnimetag;x,y,button,inner,press,release:longint);
+ procedure SelStart(obj:pAnimeObj;tag:pAnimetag;Const E:SAMouseEvent;inner:Shortint);
  begin
   if inner and 2=2 then FreshNece:=True;
 
   if inner=3 then obj^.SetAlpha(1) else
   if inner=2 then obj^.SetAlpha(0.6);
 
-  if (inner and 1=1)and(button=1)and(press=1) then GameStart
+  if (inner and 1=1)and(E.button=1)and(E.press) then GameStart
  end;
 
- procedure SelContinue(obj:pAnimeObj;tag:pAnimetag;x,y,button,inner,press,release:longint);
+ procedure SelContinue(obj:pAnimeObj;tag:pAnimetag;Const E:SAMouseEvent;inner:Shortint);
  begin
   if inner and 2=2 then FreshNece:=True;
 
   if inner=3 then obj^.SetAlpha(1) else
   if inner=2 then obj^.SetAlpha(0.6);
 
-  if (inner and 1=1)and(button=1)and(press=1) then GameContinue
+  if (inner and 1=1)and(E.button=1)and(E.press) then GameContinue
  end;
 
- procedure SelExit(obj:pAnimeObj;tag:pAnimetag;x,y,button,inner,press,release:longint);
+ procedure SelExit(obj:pAnimeObj;tag:pAnimetag;Const E:SAMouseEvent;inner:ShortInt);
  begin
   if inner and 2=2 then FreshNece:=True;
 
   if inner=3 then obj^.SetAlpha(1) else
   if inner=2 then obj^.SetAlpha(0.6);
 
-  if (inner and 1=1)and(button=1)and(press=1) then GameExit
+  if (inner and 1=1)and(E.button=1)and(E.press) then GameExit
  end;
 
 var
@@ -1126,7 +1148,7 @@ begin
  Reset(TmpFile);
  Repeat
   Readln(TmpFile,TmpFileStr);
-  if TmpFileStr[1]<>'`' then Break;
+  if (TmpFileStr='')Or(TmpFileStr[1]<>'`') then Break;
   if lowercase(Copy(TmpFileStr,1,9))='`gamename' then
    GAMENAME:=Copy(TmpFileStr,10,Length(TmpFileStr))
   else
@@ -1211,6 +1233,7 @@ begin
  CommenceText.AttachAnime(CoStart_id,CoSel_tg);
 
  repeat
+  If Not ConsoleUsing Then Halt;
   Lock;
   ScreenClear;
   Commence.Display;
@@ -1247,6 +1270,7 @@ begin
  CommenceText.AttachAnime(CoExit_id,CoSel_tg);
 
  repeat
+  If Not ConsoleUsing Then Halt;
   Lock;
   ScreenClear;
   Commence.Display;
@@ -1271,6 +1295,7 @@ begin
  NoteInit;
 
  repeat
+  If Not ConsoleUsing Then Halt;
   FreshNece:=False;
   CommenceText.Communication;
   if FreshNece then

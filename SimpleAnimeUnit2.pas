@@ -110,6 +110,9 @@ type
  function Color_ALW(const a,b:Color):Longint;
  function Color_Blend(const a,b:Color;BlendTp:Shortint):Color;
 
+
+ function tp_Count(const x:real;_tp:shortint):real;
+
 const
  Color_Alpha  :Color=(b:0;g:0;r:0;a:0);
  Color_Black  :Color=(b:0;g:0;r:0;a:255);
@@ -448,13 +451,15 @@ procedure StopMusic(mid:longint);
 
 Function ConsoleUsing:Boolean;
 
-Function GetMouse(var x,y,button,press,release:longint):Boolean;
-Function GetKey(var key,press,release:longint):Boolean;
-Function GetKey(var key,press,release,shift,alt,ctrl:Longint):Boolean;
-Function TestMouse(var x,y,button,press,release:longint):Boolean;
-Function TestKey(var key,press,release:longint):Boolean;
-Function TestKey(var key,press,release,shift,alt,ctrl:Longint):Boolean;
+Function GetMouse(var x,y,button:longint):Boolean;
+Function GetKey(var key:longint):Boolean;
+Function GetMouse(Var E:SAMouseEvent):Boolean;
+Function GetKey(Var E:SAKeyEvent):Boolean;
 Function GetKeyPress:Boolean;
+Function TestMouse(var x,y,button:longint):Boolean;
+Function TestKey(var key:longint):Boolean;
+Function TestMouse(Var E:SAMouseEvent):Boolean;
+Function TestKey(Var E:SAKeyEvent):Boolean;
 Function TestKeyPress:Boolean;
 
 Function GetEvent:EList;
@@ -915,7 +920,7 @@ Begin
 End;
 
 
-Function GetMouse(Var x,y,button,press,release:Longint):Boolean;
+Function GetMouse(Var x,y,button:Longint):Boolean;
 Var
  TmpB:IPTCMouseButtonEvent;
  tmpM:IPTCMouseEvent;
@@ -930,9 +935,7 @@ Begin
    tmpB:=Event as IPTCMouseButtonEvent;
    x:=tmpB.X;
    y:=tmpB.Y;
-   button:=GetMouseCode(tmpB.button);
-   press:=Ord(tmpB.Press);
-   release:=Ord(tmpB.Release)
+   button:=GetMouseCode(tmpB.button)
   End
   Else
   Begin
@@ -940,15 +943,13 @@ Begin
    tmpM:=Event as IPTCMouseEvent;
    x:=tmpM.X;
    y:=tmpM.Y;
-   button:=GetMouseCode(tmpM.ButtonState);
-   press:=0;
-   release:=0
+   button:=GetMouseCode(tmpM.ButtonState)
   End
  End;
  Exit(True)
 End;
 
-Function TestMouse(Var x,y,button,press,release:Longint):Boolean;
+Function TestMouse(Var x,y,button:Longint):Boolean;
 Var
  TmpB:IPTCMouseButtonEvent;
  tmpM:IPTCMouseEvent;
@@ -963,9 +964,7 @@ Begin
    tmpB:=Event as IPTCMouseButtonEvent;
    x:=tmpB.X;
    y:=tmpB.Y;
-   button:=GetMouseCode(tmpB.button);
-   press:=Ord(tmpB.Press);
-   release:=Ord(tmpB.Release)
+   button:=GetMouseCode(tmpB.button)
   End
   Else
   Begin
@@ -973,16 +972,79 @@ Begin
    tmpM:=Event as IPTCMouseEvent;
    x:=tmpM.X;
    y:=tmpM.Y;
-   button:=GetMouseCode(tmpM.ButtonState);
-   press:=0;
-   release:=0
+   button:=GetMouseCode(tmpM.ButtonState)
   End
  End;
  Exit(True)
 End;
 
+Function GetMouse(Var E:SAMouseEvent):Boolean;
+Var
+ TmpB:IPTCMouseButtonEvent;
+ tmpM:IPTCMouseEvent;
+Begin
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,True,[PTCMouseEvent,PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
+ If Supports(Event,IPTCMouseEvent) Then
+ Begin
+  If Supports(Event,IPTCMouseButtonEvent) Then
+  Begin
+   tmpB:=Event as IPTCMouseButtonEvent;
+   E.x:=tmpB.X;
+   E.y:=tmpB.Y;
+   E.button:=GetMouseCode(tmpB.button);
+   E.press:=tmpB.press;
+   E.release:=tmpB.release
+  End
+  Else
+  Begin
+   tmpM:=Event as IPTCMouseEvent;
+   tmpM:=Event as IPTCMouseEvent;
+   E.x:=tmpM.X;
+   E.y:=tmpM.Y;
+   E.button:=GetMouseCode(tmpM.ButtonState);
+   E.press:=False;
+   E.release:=False
+  End
+ End;
+ Exit(True)
+End;
 
-Function GetKey(Var Key,press,release:Longint):Boolean;
+Function TestMouse(Var E:SAMouseEvent):Boolean;
+Var
+ TmpB:IPTCMouseButtonEvent;
+ tmpM:IPTCMouseEvent;
+Begin
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,False,[PTCMouseEvent,PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
+ If Supports(Event,IPTCMouseEvent) Then
+ Begin
+  If Supports(Event,IPTCMouseButtonEvent) Then
+  Begin
+   tmpB:=Event as IPTCMouseButtonEvent;
+   E.x:=tmpB.X;
+   E.y:=tmpB.Y;
+   E.button:=GetMouseCode(tmpB.button);
+   E.press:=tmpB.press;
+   E.release:=tmpB.release
+  End
+  Else
+  Begin
+   tmpM:=Event as IPTCMouseEvent;
+   tmpM:=Event as IPTCMouseEvent;
+   E.x:=tmpM.X;
+   E.y:=tmpM.Y;
+   E.button:=GetMouseCode(tmpM.ButtonState);
+   E.press:=False;
+   E.release:=False
+  End
+ End;
+ Exit(True)
+End;
+
+Function GetKey(Var Key:Longint):Boolean;
 var
  tmpK:IPTCKeyEvent;
 Begin
@@ -992,14 +1054,12 @@ Begin
  if Supports(Event,IPTCKeyEvent) Then
  Begin
   tmpK:=Event as IPTCKeyEvent;
-  key:=tmpK.Code;
-  press:=ord(tmpK.Press);
-  release:=Ord(tmpK.Release)
+  key:=tmpK.Code
  End;
  Exit(True)
 End;
 
-Function TestKey(Var Key,press,release:Longint):Boolean;
+Function TestKey(Var Key:Longint):Boolean;
 var
  tmpK:IPTCKeyEvent;
 Begin
@@ -1009,14 +1069,12 @@ Begin
  if Supports(Event,IPTCKeyEvent) Then
  Begin
   tmpK:=Event as IPTCKeyEvent;
-  key:=tmpK.Code;
-  press:=ord(tmpK.Press);
-  release:=Ord(tmpK.Release)
+  key:=tmpK.Code
  End;
  Exit(True)
 End;
 
-Function GetKey(var key,press,release,shift,alt,ctrl:Longint):Boolean;
+Function GetKey(var E:SAKeyEvent):Boolean;
 Var
  TmpK:IPTCKeyEvent;
 Begin
@@ -1026,17 +1084,17 @@ Begin
  if Supports(Event,IPTCKeyEvent) Then
  Begin
   tmpK:=Event as IPTCKeyEvent;
-  key:=tmpK.Code;
-  press:=ord(tmpK.Press);
-  release:=Ord(tmpK.Release);
-  shift:=Ord(TmpK.Shift);
-  alt:=Ord(TmpK.Alt);
-  ctrl:=Ord(TmpK.Control);
+  E.key:=tmpK.Code;
+  E.press:=tmpK.Press;
+  E.release:=tmpK.Release;
+  E.shift:=TmpK.Shift;
+  E.alt:=TmpK.Alt;
+  E.ctrl:=TmpK.Control
  End;
  Exit(True)
 End;
 
-Function TestKey(var key,press,release,shift,alt,ctrl:Longint):Boolean;
+Function TestKey(var E:SAKeyEvent):Boolean;
 Var
  TmpK:IPTCKeyEvent;
 Begin
@@ -1046,12 +1104,12 @@ Begin
  if Supports(Event,IPTCKeyEvent) Then
  Begin
   tmpK:=Event as IPTCKeyEvent;
-  key:=tmpK.Code;
-  press:=ord(tmpK.Press);
-  release:=Ord(tmpK.Release);
-  shift:=Ord(TmpK.Shift);
-  alt:=Ord(TmpK.Alt);
-  ctrl:=Ord(TmpK.Control);
+  E.key:=tmpK.Code;
+  E.press:=tmpK.Press;
+  E.release:=tmpK.Release;
+  E.shift:=TmpK.Shift;
+  E.alt:=TmpK.Alt;
+  E.ctrl:=TmpK.Control
  End;
  Exit(True)
 End;
@@ -2651,10 +2709,6 @@ begin
  StdTime:=_t
 end;
 
-function AnimeTag.Process:boolean;
-var
- Tim:Real;
-
  function tp_Count(const x:real;_tp:shortint):real;
  begin
   case _tp of
@@ -2672,6 +2726,9 @@ var
   end
  end;
 
+function AnimeTag.Process:boolean;
+var
+ Tim:Real;
 begin
  Process:=True;
  Tim:=(DeltaTime-StdTime)/TotTime;
