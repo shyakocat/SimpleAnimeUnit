@@ -257,6 +257,8 @@ type
   Procedure WriteTo(var A:Graph;_x,_y:Longint);
   Procedure SetText(Const Str:Ansistring);
   Procedure SetSize(_s:Longint);
+  Procedure SetType(Const tp:Ansistring);
+  Function CountWidth:Longint;
   Function Reproduce:pBaseGraph;Virtual;
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
  End;
@@ -319,8 +321,11 @@ type
   Function Cut:AnimeObj;
  end;
 
- MouseProc=procedure(obj:pAnimeObj;tag:pAnimeTag;x,y,button,inner,press,release:longint);
-   KeyProc=procedure(obj:pAnimeObj;tag:pAnimeTag;key,press,release:longint);
+ SAMouseEvent=Packed Record x,y,button:Longint; press,release:Boolean End;
+ SAKeyEvent=Packed Record key:Longint; press,release,alt,shift,ctrl:Boolean End;
+
+ MouseProc=procedure(obj:pAnimeObj;tag:pAnimeTag;Const E:SAMouseEvent;inner:ShortInt);
+   KeyProc=procedure(obj:pAnimeObj;tag:pAnimeTag;Const E:SAKeyEvent);
    NonProc=procedure(obj:pAnimeObj;tag:pAnimeTag);
 
  AnimeLog=packed object
@@ -331,8 +336,8 @@ type
   KeyEvent:KeyProc;
   NonEvent:NonProc;
   Constructor Create;
-  procedure DealMouse(x,y,button,press,release:longint);
-  procedure DealKey(key,press,release:longint);
+  procedure DealMouse(x,y,button:longint;press,release:boolean);
+  procedure DealKey(key:Longint;press,release,alt,shift,ctrl:Boolean);
   procedure DealNon();
  end;
 
@@ -2180,6 +2185,28 @@ Begin
  Width:=0;
 End;
 
+Function TextGraph.CountWidth:Longint;
+Var
+ dc:HDC;
+ tmp:LPSize;
+ hFt:HFont;
+Begin
+ dc:=CreateCompatibleDC(0);
+ hFt:=CreateFont(FontSize,0,Round(FontAngle*10),Round(FontAngle*10),
+                 Ord(Bold)*FW_BOLD+Ord(Not Bold)*FW_NORMAL,Ord(Italic),Ord(UnderLine),Ord(StrikeOut),CHARSET,
+                  OUT_DEFAULT_PRECIS,
+                 CLIP_DEFAULT_PRECIS,
+                 DEFAULT_QUALITY,
+                 DEFAULT_PITCH or FF_DONTCARE,
+                 PChar(FontType));
+ SelectObject(dc,hFt);
+ New(Tmp);
+ GetTextExtentPoint32(dc,Pchar(Text),Length(Text),tmp);
+ Result:=Tmp^.CX;
+ DeleteObject(hFt);
+ DeleteDC(dc)
+End;
+
 Constructor TextGraph.Create(Const Str:Ansistring);
 Begin
  Text:=Str;
@@ -2193,21 +2220,27 @@ Begin
  StrikeOut:=False;
  CharSet:=GB2312_CHARSET;
  Height:=FontSize;
- Width:=FontSize*Length(Str)Div 2+1;
+ Width:=CountWidth;
 End;
 
 Procedure TextGraph.SetText(Const Str:AnsiString);
 Begin
  Text:=Str;
  Height:=FontSize;
- Width:=FontSize*Length(Str)Div 2+1;
+ Width:=CountWidth;
 End;
 
 Procedure TextGraph.SetSize(_s:Longint);
 Begin
  FontSize:=_s;
  Height:=FontSize;
- Width:=FontSize*Length(Text)Div 2+1;
+ Width:=CountWidth;
+End;
+
+Procedure TextGraph.SetType(Const tp:Ansistring);
+Begin
+ FontType:=tp;
+ Width:=CountWidth
 End;
 
 Destructor TextGraph.Free;
@@ -2215,25 +2248,40 @@ Begin End;
 
 Procedure TextGraph.WriteTo(Var A:Graph;_x,_y:Longint);
 Var
+ Clip:Graph;
+ ClipX1,ClipY1,ClipX2,ClipY2:Longint;
  w,h,_stride,_offset,x,y:longint;
+ hHeight,hWidth,_cx,_cy,_nx,_ny,_sin,_cos:Single;
  TextC,BoldValue:DWord;
  buf:pointer;
  dc:HDC;
  hbmp:HBITMAP;
  bmi:TBitmapInfo;
- Rt:Rect;
  hFt:HFont;
  p:PRGBTriple;
 Begin
- H:=A.Height;
- W:=A.Width;
- if (_x>H)or(_y>W) then exit;
+ hHeight:=Height*0.5;
+ hWidth:=Width*0.5;
+ _cx:=_X+hHeight;
+ _cy:=_Y+hWidth;
+ _sin:=sin(FontAngle/180*pi);
+ _cos:=cos(FontAngle/180*pi);
+ _nx:=-hHeight*_cos+hWidth*_sin+_cx;
+ _ny:=-hHeight*_sin-hWidth*_cos+_cy;
+ ClipX1:=Round(_CX-hHeight*Abs(_Cos)-hWidth*Abs(_Sin));
+ ClipY1:=Round(_CY-hHeight*Abs(_Sin)-hWidth*Abs(_Cos));
+ ClipX2:=Round(_CX+hHeight*Abs(_Cos)+hWidth*Abs(_Sin));
+ ClipY2:=Round(_CY+hHeight*Abs(_Sin)+hWidth*Abs(_Cos));
+ If (ClipX1>A.Height)Or(ClipY1>A.Width) Then Exit;
+ Clip:=A.Cut(ClipX1,ClipY1,ClipX2,ClipY2);
+ H:=Clip.Height;
+ W:=Clip.Width;
  _stride:=(w*3-1or 3)+1;
  _offset:=_stride-w*3;
  GetMem(buf,h*_Stride);
  p:=buf;
  for x:=h-1 downto 0 do begin
- for y:=0 to w-1 do with A.Canvas[x*W+y] do begin
+ for y:=0 to w-1 do with Clip.Canvas[x*W+y] do begin
   p^.rgbtRed:=r;
   p^.rgbtGreen:=g;
   p^.rgbtBlue:=b;
@@ -2255,10 +2303,6 @@ Begin
  With FontColor Do textc:=RGB(r,g,b);
  SetTextColor(dc,textc);
  SetBkMode(dc,TRANSPARENT);
- Rt.Left:=_y;
- Rt.Top:=_x;
- Rt.Right:=w;
- Rt.Bottom:=h;
  IF Bold Then BoldValue:=FW_BOLD ELSE BOLDVALUE:=FW_NORMAL;
  hFt:=CreateFont(FontSize,0,Round(FontAngle*10),Round(FontAngle*10),BOLDVALUE,Ord(Italic),Ord(UnderLine),Ord(StrikeOut),CHARSET,
                   OUT_DEFAULT_PRECIS,
@@ -2267,18 +2311,19 @@ Begin
                  DEFAULT_PITCH or FF_DONTCARE,
                  PChar(FontType));
  SelectObject(dc,hFt);
- TextOut(dc,_y,_x,pChar(Text),Length(Text));
+ TextOut(dc,Round(_ny-ClipY1),Round(_nx-ClipX1),pChar(Text),Length(Text));
  DeleteObject(hFt);
  GetDIBits(dc,hbmp,0,h,buf,bmi,DIB_RGB_COLORS);
  p:=Buf;
  for x:=h downto 1 do begin
  for y:=1 to w do begin
-  A.setp(x,y,RGBA(p^.rgbtRed,p^.rgbtGreen,p^.rgbtBlue,A.getp(x,y).A));
+  Clip.setp(x,y,RGBA(p^.rgbtRed,p^.rgbtGreen,p^.rgbtBlue,Clip.getp(x,y).A));
   inc(p) end;
   p:=pointer(LongWord(p)+_offset) end;
  FreeMem(buf);
  DeleteObject(hbmp);
- DeleteDC(dc)
+ DeleteDC(dc);
+ DrawTo(Clip,A,ClipX1,ClipY1)
 End;
 
 Function TextGraph.Reproduce:pBaseGraph;
@@ -2661,24 +2706,30 @@ begin
  NonEvent:=nil
 end;
 
-procedure AnimeLog.DealMouse(x,y,button,press,release:longint);
+procedure AnimeLog.DealMouse(x,y,button:longint;press,release:boolean);
 var
  _inner:shortint;
  tmpobj:AnimeObj;
  tmptag:AnimeTag;
+ tmp:SAMouseEvent;
 begin
  if MouseEvent=nil then exit;
  tmpobj:=RegObj^; tmptag:=RegTag^;
  tmptag.Process; tmpobj.Process(tmptag);
  _inner:=ord(tmpobj.inner(y,x)); if _inner<>LastInner then inc(_inner,2);
- MouseEvent(RegObj,RegTag,y,x,button,_inner,press,release);
+ tmp.x:=y; tmp.y:=x; tmp.button:=button; tmp.press:=press; tmp.release:=release;
+ MouseEvent(RegObj,RegTag,Tmp,_inner);
  LastInner:=_inner and 1
 end;
 
-procedure AnimeLog.DealKey(key,press,release:longint);
+procedure AnimeLog.DealKey(key:longint;press,release,alt,shift,ctrl:Boolean);
+Var
+ tmp:SAKeyEvent;
 begin
  if KeyEvent=nil then exit;
- KeyEvent(RegObj,RegTag,Key,press,release)
+ tmp.key:=key; tmp.press:=press; tmp.release:=release;
+ tmp.alt:=alt; tmp.shift:=shift; tmp.ctrl:=ctrl;
+ KeyEvent(RegObj,RegTag,Tmp)
 end;
 
 procedure AnimeLog.DealNon();
@@ -3114,7 +3165,8 @@ var
  tmpM:IPTCMouseEvent;
  tmpB:IPTCMouseButtonEvent;
  tmpK:IPTCKeyEvent;
- _x,_y,_button,_key,_press,_release:longint;
+ SAMe:SAMouseEvent;
+ SAKe:SAKeyEvent;
 begin
  If Not ConsoleUsing Then Exit;
  while Console.NextEvent(Event,False,PTCAnyEvent) do
@@ -3124,35 +3176,40 @@ begin
     if Supports(Event,IPTCMouseButtonEvent) then
     Begin
      tmpB:=Event as IPTCMouseButtonEvent;
-     _x:=tmpB.X;
-     _y:=tmpB.Y;
-     _button:=GetMouseCode(tmpB.Button);
-     _press:=Ord(tmpB.Press);
-     _release:=Ord(tmpB.Release)
+     SAMe.x:=tmpB.X;
+     SAMe.y:=tmpB.Y;
+     SAMe.button:=GetMouseCode(tmpB.Button);
+     SAMe.press:=tmpB.Press;
+     SAMe.release:=tmpB.Release
     End
     Else
     Begin
      tmpM:=Event as IPTCMouseEvent;
-     _x:=tmpM.X;
-     _y:=tmpM.Y;
-     _button:=GetMouseCode(tmpM.ButtonState);
-     _press:=0;
-     _release:=0;
+     SAMe.x:=tmpM.X;
+     SAMe.y:=tmpM.Y;
+     SAMe.button:=GetMouseCode(tmpM.ButtonState);
+     SAMe.press:=False;
+     SAMe.release:=False
     End;
     for i:=1 to Member.Size do
      if Member.Items[i].Role.Visible then
-      Member.Items[i].Talk.DealMouse(_x,_y,_button,_press,_release)
+      With SAMe Do
+      Member.Items[i].Talk.DealMouse(x,y,button,press,release)
    end
   else
   if Supports(Event,IPTCKeyEvent) then
    begin
     tmpK:=Event as IPTCKeyEvent;
-    _key:=tmpK.Code;
-    _press:=ord(tmpK.Press);
-    _release:=Ord(tmpK.Release);
+    SAKe.key:=tmpK.Code;
+    SAKe.press:=tmpK.Press;
+    SAKe.release:=tmpK.Release;
+    SAKe.alt:=tmpK.Alt;
+    SAKe.shift:=tmpK.Shift;
+    SAKe.ctrl:=tmpK.Control;
     for i:=1 to Member.Size do
      if Member.Items[i].Role.Visible then
-      Member.Items[i].Talk.DealKey(_key,_press,_release)
+      With SAKe Do
+      Member.Items[i].Talk.DealKey(key,press,release,alt,shift,ctrl)
    end;
  end;
  for i:=1 to Member.Size do Member.Items[i].Talk.DealNon()
@@ -3164,7 +3221,8 @@ var
  tmpM:IPTCMouseEvent;
  tmpB:IPTCMouseButtonEvent;
  tmpK:IPTCKeyEvent;
- _x,_y,_button,_key,_press,_release:longint;
+ SAMe:SAMouseEvent;
+ SAKe:SAKeyEvent;
 begin
  If Not ConsoleUsing Then Exit;
  For J:=1 to L.Size Do
@@ -3175,36 +3233,41 @@ begin
     if Supports(Event,IPTCMouseButtonEvent) then
     Begin
      tmpB:=Event as IPTCMouseButtonEvent;
-     _x:=tmpB.X;
-     _y:=tmpB.Y;
-     _button:=GetMouseCode(tmpB.Button);
-     _press:=Ord(tmpB.Press);
-     _release:=Ord(tmpB.Release)
+     SAMe.x:=tmpB.X;
+     SAMe.y:=tmpB.Y;
+     SAMe.button:=GetMouseCode(tmpB.Button);
+     SAMe.press:=tmpB.Press;
+     SAMe.release:=tmpB.Release
     End
     Else
     Begin
      tmpM:=Event as IPTCMouseEvent;
-     _x:=tmpM.X;
-     _y:=tmpM.Y;
-     _button:=GetMouseCode(tmpM.ButtonState);
-     _press:=0;
-     _release:=0;
+     SAMe.x:=tmpM.X;
+     SAMe.y:=tmpM.Y;
+     SAMe.button:=GetMouseCode(tmpM.ButtonState);
+     SAMe.press:=False;
+     SAMe.release:=False
     End;
     for i:=1 to Member.Size do
      if Member.Items[i].Role.Visible then
-      Member.Items[i].Talk.DealMouse(_x,_y,_button,_press,_release)
+      With SAMe Do
+      Member.Items[i].Talk.DealMouse(x,y,button,press,release)
    end
   else
   if Supports(Event,IPTCKeyEvent) then
    begin
     tmpK:=Event as IPTCKeyEvent;
-    _key:=tmpK.Code;
-    _press:=ord(tmpK.Press);
-    _release:=Ord(tmpK.Release);
+    SAKe.key:=tmpK.Code;
+    SAKe.press:=tmpK.Press;
+    SAKe.release:=tmpK.Release;
+    SAKe.alt:=tmpK.Alt;
+    SAKe.shift:=tmpK.Shift;
+    SAKe.ctrl:=tmpK.Control;
     for i:=1 to Member.Size do
      if Member.Items[i].Role.Visible then
-      Member.Items[i].Talk.DealKey(_key,_press,_release)
-   end;
+      With SAKe Do
+      Member.Items[i].Talk.DealKey(key,press,release,alt,shift,ctrl)
+   end
  end;
  for i:=1 to Member.Size do Member.Items[i].Talk.DealNon()
 end;

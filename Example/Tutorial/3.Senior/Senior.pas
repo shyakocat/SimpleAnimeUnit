@@ -15,15 +15,14 @@ Var
 
  c:TextGraph;
 
- Procedure DealMouse(obj:pAnimeObj;tag:pAnimeTag;x,y,button,inner,press,release:Longint);
+ Procedure DealMouse(obj:pAnimeObj;tag:pAnimeTag;Const E:SAMouseEvent;inner:ShortInt);
 //这个过程是一个MouseEvent，他参数的格式必须如上
-//x,y表示鼠标位置
-//button表示鼠标状态，如果二进制位1上有1表示鼠标左键
+//SAMouseEvent是一个集成的鼠标信息记录
+//Longint类型的E.x,E.y表示鼠标位置，E.button表示鼠标状态，如果二进制位1上有1表示鼠标左键
+//Boolean类型的E.press表示鼠标按下（的瞬间），E.release表示鼠标弹起（的瞬间）
 //inner表示是否在图片内，如果二进制位1上有1表示“是”，这里的图片内指图片的感应区内
-//press为1表示按下
-//release为1表示弹起
  Begin
-  if (button and 1=1)and(press=1)and(inner and 1=1) then
+  if (E.button and 1=1)and(E.press)and(inner and 1=1) then
    obj^.Alpha:=1.5-obj^.Alpha   //如果鼠标左键在图片上按下了，就变化图片的透明度
  End;
 
