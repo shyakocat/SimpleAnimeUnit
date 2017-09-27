@@ -21,6 +21,7 @@ var
  Event:IPTCEvent;
 
  ConsoleHWND:HWND;
+
  FreshLimit:Longint=0;
  LastFresh:Int64;
  UpdateFPS:Int64;
@@ -461,6 +462,7 @@ Function TestKey(var key:longint):Boolean;
 Function TestMouse(Var E:SAMouseEvent):Boolean;
 Function TestKey(Var E:SAKeyEvent):Boolean;
 Function TestKeyPress:Boolean;
+Function GetClose:Boolean;
 
 Function GetEvent:EList;
 
@@ -501,7 +503,7 @@ function List.isnil:boolean;
  procedure List.resize(n:longint);
  begin
   Size:=n;
-  if (Size<10)and(high(Items)<10) then setlength(Items,10) else
+  if Size<10 Then Begin If high(Items)<9 then setlength(Items,10) End else
   if Size>=high(Items) then setlength(Items,Size<<1) else
   if Size<high(Items)>>2 then setlength(Items,Size>>1)
  end;
@@ -925,6 +927,7 @@ Var
  TmpB:IPTCMouseButtonEvent;
  tmpM:IPTCMouseEvent;
 Begin
+ X:=0; Y:=0; Button:=0;
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,True,[PTCMouseEvent,PTCCloseEvent]);
  If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
@@ -954,6 +957,7 @@ Var
  TmpB:IPTCMouseButtonEvent;
  tmpM:IPTCMouseEvent;
 Begin
+ X:=0; Y:=0; Button:=0;
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,False,[PTCMouseEvent,PTCCloseEvent]);
  If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
@@ -983,6 +987,7 @@ Var
  TmpB:IPTCMouseButtonEvent;
  tmpM:IPTCMouseEvent;
 Begin
+ FillChar(E,Sizeof(E),0);
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,True,[PTCMouseEvent,PTCCloseEvent]);
  If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
@@ -1016,6 +1021,7 @@ Var
  TmpB:IPTCMouseButtonEvent;
  tmpM:IPTCMouseEvent;
 Begin
+ FillChar(E,Sizeof(E),0);
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,False,[PTCMouseEvent,PTCCloseEvent]);
  If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
@@ -1048,6 +1054,7 @@ Function GetKey(Var Key:Longint):Boolean;
 var
  tmpK:IPTCKeyEvent;
 Begin
+ Key:=0;
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,True,[PTCKeyEvent,PTCCloseEvent]);
  If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
@@ -1063,6 +1070,7 @@ Function TestKey(Var Key:Longint):Boolean;
 var
  tmpK:IPTCKeyEvent;
 Begin
+ Key:=0;
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,False,[PTCKeyEvent,PTCCloseEvent]);
  If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
@@ -1078,6 +1086,7 @@ Function GetKey(var E:SAKeyEvent):Boolean;
 Var
  TmpK:IPTCKeyEvent;
 Begin
+ FillChar(E,Sizeof(E),0);
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,True,[PTCKeyEvent,PTCCloseEvent]);
  If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
@@ -1098,6 +1107,7 @@ Function TestKey(var E:SAKeyEvent):Boolean;
 Var
  TmpK:IPTCKeyEvent;
 Begin
+ FillChar(E,Sizeof(E),0);
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,False,[PTCKeyEvent,PTCCloseEvent]);
  If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
@@ -1128,6 +1138,14 @@ Begin
  Console.NextEvent(Event,False,[PTCKeyEvent,PTCCloseEvent]);
  If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
  Exit(Supports(Event,IPTCKeyEvent))
+End;
+
+Function GetClose:Boolean;
+Begin
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,True,[PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin EndIt; Exit(True) End;
+ Exit(False)
 End;
 
 
