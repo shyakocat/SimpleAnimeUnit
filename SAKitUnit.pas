@@ -2,6 +2,7 @@ unit SAkitUnit;
 interface
 uses SimpleAnimeUnit2,Windows,SysUtils;
 
+
 Type
 
  pPureGraph=^PureGraph;
@@ -48,11 +49,29 @@ Type
   Bmi:TBitmapInfo;
   _Stride,_Offset:Longint;
   Constructor Create;
+  Constructor Create(_W,_H:Longint);
   Constructor Create(Const A:Graph);
   Constructor ScreenShot(window:HWND);
   Destructor Free;Virtual;
   Function Cut:BitmapGraph;
   Function toGraph:Graph;
+
+  Function SetPixel(_x,_y:Longint;_c:COLORREF):COLORREF; //unusual
+  Function GetPixel(_x,_y:Longint):COLORREF;             //unusual
+  Procedure Fill(x0,y0,x1,y1,_c:Longint);
+  Procedure DrawLine(x0,y0,x1,y1,_style,_width,_c:Longint);
+  Procedure DrawCircle(x,y,r,_ci,_co:Longint);
+  Procedure DrawEllipse(x0,y0,x1,y1,_ci,_co:Longint);
+  Procedure DrawRect(x0,y0,x1,y1,_ci,_co:Longint);
+  Procedure DrawRect(x0,y0,x1,y1,_style,_ci,_co:Longint);
+  Procedure DrawBmp(x0,y0,x1,y1:Longint;_f:LPCTSTR);
+  Procedure DrawArc(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
+  Procedure DrawChord(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
+  Procedure DrawPie(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
+  Procedure DrawBezier(p:pPoint;n,_width,_c:Longint);
+  Procedure DrawText(x,y:Longint;s:lpCTSTR;c:Longint);
+  Procedure DrawText(x,y:Longint;Const T:TextGraph);
+
   Function Reproduce:pBaseGraph;Virtual;
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
  End;
@@ -205,6 +224,26 @@ Begin
  FillChar(Bmi,Sizeof(Bmi),0)
 End;
 
+Constructor BitmapGraph.Create(_W,_H:Longint);
+Begin
+ Width:=_W;
+ Height:=_H;
+ _Stride:=(Width*3-1or 3)+1;
+ _Offset:=_Stride-Width*3;
+ Dc:=CreateCompatibleDC(0);
+ HBmp:=CreateBitmap(Width,Height,1,32,nil);
+ With Bmi.bmiHeader Do
+ Begin
+  biSize:=Sizeof(TBitmapInfoHeader);
+  biWidth:=Width;
+  biHeight:=Height;
+  biPlanes:=1;
+  biBitCount:=24;
+  biCompression:=BI_RGB
+ End;
+ SelectObject(Dc,hbmp)
+End;
+
 Constructor BitmapGraph.Create(Const A:Graph);
 var
  Buffer:Pointer;
@@ -325,5 +364,181 @@ Begin
  Tmp^:=toGraph;
  Exit(Tmp)
 ENd;
+
+Function BitmapGraph.SetPixel(_x,_y:Longint;_c:COLORREF):COLORREF;
+Begin
+ Exit(Windows.SetPixel(Dc,_X,_Y,_C))
+End;
+
+Function BitmapGraph.GetPixel(_x,_y:Longint):COLORREF;
+Begin
+ Exit(Windows.GetPixel(Dc,_X,_Y))
+End;
+
+Procedure BitmapGraph.Fill(x0,y0,x1,y1,_c:Longint);
+Var
+ hBrush:LongWord;
+ Rt:Rect;
+Begin
+ hBrush:=CreateSolidBrush(_C);
+ With Rt Do Begin Left:=x0; Top:=y0; Right:=x1; Bottom:=y1 End;
+ FillRect(Dc,Rt,hBrush);
+ DeleteObject(hBrush)
+End;
+
+Procedure BitmapGraph.DrawLine(x0,y0,x1,y1,_style,_width,_c:Longint);
+Var
+ hPen,hOldPen:LongWord;
+Begin
+ hPen:=CreatePen(_style,_width,_c);
+ hOldPen:=SelectObject(Dc,hPen);
+ MoveToEx(Dc,x0,y0,nil);
+ LineTo(Dc,x1,y1);
+ SelectObject(Dc,hOldPen);
+ DeleteObject(hPen)
+End;
+
+Procedure BitmapGraph.DrawCircle(x,y,r,_ci,_co:Longint);
+Begin
+ DrawEllipse(x-r,y-r,x+r,y+r,_ci,_co)
+End;
+
+Procedure BitmapGraph.DrawEllipse(x0,y0,x1,y1,_ci,_co:Longint);
+Var
+ hBrush,hPen,hOldBrush,hOldPen:LongWord;
+Begin
+ hBrush:=CreateSolidBrush(_Ci);
+ hOldBrush:=SelectObject(Dc,hBrush);
+ hPen:=CreatePen(PS_SOLID,1,_Co);
+ hOldPen:=SelectObject(Dc,hPen);
+ Ellipse(Dc,x0,y0,x1,y1);
+ SelectObject(Dc,hOldPen);
+ DeleteObject(hPen);
+ SelectObject(Dc,hOldBrush);
+ DeleteObject(hBrush)
+End;
+
+Procedure BitmapGraph.DrawRect(x0,y0,x1,y1,_ci,_co:Longint);
+Var
+ hBrush,hPen,hOldBrush,hOldPen:LongWord;
+Begin
+ hBrush:=CreateSolidBrush(_ci);
+ hOldBrush:=SelectObject(Dc,hBrush);
+ hPen:=CreatePen(PS_SOLID,1,_Co);
+ hOldPen:=SelectObject(Dc,hPen);
+ Rectangle(Dc,x0,y0,x1,y1);
+ SelectObject(Dc,hOldBrush);
+ DeleteObject(hBrush);
+ SelectObject(Dc,hOldPen);
+ DeleteObject(hPen)
+End;
+
+Procedure BitmapGraph.DrawRect(x0,y0,x1,y1,_style,_ci,_co:Longint);
+Var
+ hBrush,hPen,hOldBrush,hOldPen:LongWord;
+Begin
+ hBrush:=CreateHatchBrush(_style,_ci);
+ hOldBrush:=SelectObject(Dc,hBrush);
+ hPen:=CreatePen(PS_SOLID,1,_Co);
+ hOldPen:=SelectObject(Dc,hPen);
+ Rectangle(Dc,x0,y0,x1,y1);
+ SelectObject(Dc,hOldBrush);
+ DeleteObject(hBrush);
+ SelectObject(Dc,hOldPen);
+ DeleteObject(hPen)
+End;
+
+Procedure BitmapGraph.DrawBmp(x0,y0,x1,y1:Longint;_f:LPCTSTR);
+Var
+ hBmpPic:HBITMAP;
+ hBrush,hOldBrush:LongWord;
+Begin
+ hBmpPic:=LoadImage(0,_f,IMAGE_BITMAP,0,0,LR_LOADFROMFILE Or LR_CREATEDIBSECTION);
+ hBrush:=CreatePatternBrush(hBmpPic);
+ hOldBrush:=SelectObject(Dc,hBrush);
+ Rectangle(Dc,x0,y0,x1,y1);
+ SelectObject(Dc,hOldBrush);
+ DeleteObject(hBrush);
+ DeleteObject(hBmpPic)
+End;
+
+Procedure BitmapGraph.DrawArc(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
+Var
+ hBrush,hPen,hOldBrush,hOldPen:LongWord;
+Begin
+ hBrush:=CreateSolidBrush(_ci);
+ hOldBrush:=SelectObject(Dc,hBrush);
+ hPen:=CreatePen(PS_SOLID,1,_Co);
+ hOldPen:=SelectObject(Dc,hPen);
+ Arc(Dc,x0,y0,x1,y1,Xstart,Ystart,Xend,Yend);
+ SelectObject(Dc,hOldBrush);
+ DeleteObject(hBrush);
+ SelectObject(Dc,hOldPen);
+ DeleteObject(hPen)
+End;
+
+Procedure BitmapGraph.DrawChord(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
+Var
+ hBrush,hPen,hOldBrush,hOldPen:LongWord;
+Begin
+ hBrush:=CreateSolidBrush(_ci);
+ hOldBrush:=SelectObject(Dc,hBrush);
+ hPen:=CreatePen(PS_SOLID,1,_Co);
+ hOldPen:=SelectObject(Dc,hPen);
+ Chord(Dc,x0,y0,x1,y1,Xstart,Ystart,Xend,Yend);
+ SelectObject(Dc,hOldBrush);
+ DeleteObject(hBrush);
+ SelectObject(Dc,hOldPen);
+ DeleteObject(hPen)
+End;
+
+Procedure BitmapGraph.DrawPie(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
+Var
+ hBrush,hPen,hOldBrush,hOldPen:LongWord;
+Begin
+ hBrush:=CreateSolidBrush(_ci);
+ hOldBrush:=SelectObject(Dc,hBrush);
+ hPen:=CreatePen(PS_SOLID,1,_Co);
+ hOldPen:=SelectObject(Dc,hPen);
+ Pie(Dc,x0,y0,x1,y1,Xstart,Ystart,Xend,Yend);
+ SelectObject(Dc,hOldBrush);
+ DeleteObject(hBrush);
+ SelectObject(Dc,hOldPen);
+ DeleteObject(hPen)
+End;
+
+Procedure BitmapGraph.DrawBezier(p:pPOINT;n,_width,_c:Longint);
+Var
+ hPen,hOldPen:LongWord;
+Begin
+ hPen:=CreatePen(PS_SOLID,_width,_c);
+ hOldPen:=SelectObject(Dc,hPen);
+ PolyBezier(Dc,p,n);
+ SelectObject(Dc,hOldPen);
+ DeleteObject(hPen)
+End;
+
+Procedure BitmapGraph.DrawText(x,y:Longint;s:lpCTSTR;c:Longint);
+Begin
+ TextOut(Dc,x,y,s,c)
+End;
+
+Procedure BitmapGraph.DrawText(x,y:Longint;Const T:TextGraph);
+Var
+ hFont,hOldFont:LongWord;
+Begin
+ With T Do
+ hFont:=CreateFont(FontSize,0,Round(FontAngle*10),Round(FontAngle*10),
+                   Ord(Bold)*FW_BOLD+Ord(Not Bold)*FW_NORMAL,Ord(Italic),Ord(UnderLine),Ord(StrikeOut),CHARSET,
+                    OUT_DEFAULT_PRECIS,
+                   CLIP_DEFAULT_PRECIS,
+                   DEFAULT_QUALITY,
+                   DEFAULT_PITCH or FF_DONTCARE,
+                   PChar(FontType));
+ hOldFont:=SelectObject(Dc,hFont);
+ TextOut(Dc,x,y,pChar(T.Text),Length(T.Text));
+ SelectObject(Dc,hOldFont);
+ DeleteObject(hFont)
+End;
 
 end.

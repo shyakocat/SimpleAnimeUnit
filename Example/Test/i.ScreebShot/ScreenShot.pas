@@ -1,4 +1,4 @@
-//本代码是隶属于SA2库及SAKit库的测试代码的InterstingScreenShot.pas
+//本代码是隶属于SA2库及SAKit库的测试代码的ScreenShot.pas
 Uses SimpleAnimeUnit2,SAKitUnit,Windows,SysUtils;
 Const
  ScaleFactor=0.6;      //缩放因子
