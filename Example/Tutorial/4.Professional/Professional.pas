@@ -125,7 +125,7 @@ Var
  FieldLog:AnimeLog;
  StopGame:Boolean=False;
 
- Procedure KeyDeal(obj:pAnimeObj;tag:pAnimeTag;Const E:SAKeyEvent);
+ Procedure KeyDeal(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
  Begin
   if (E.key=32)and(E.release) then StopGame:=Not StopGame Else
   if E.key=27 then Halt

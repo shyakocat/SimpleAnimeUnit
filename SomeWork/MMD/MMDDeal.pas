@@ -87,38 +87,38 @@ Var
  TmpEye,TmpCtr,TmpUpW:Vector3;
  Status:Longint=0;
 
-Procedure MMDCameraBasic(obj:pAnimeObj;tag:pAnimeTag;x,y,button,inner,press,release:Longint);
+Procedure MMDCameraBasic(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
 Var
  Tmp1,Tmp2:Vector3;
  TmpL,TmpA,TmpB:Single;
  TmpM:Matrix3;
 Begin
- if press=1 then Begin
-  TmpX:=x;
-  TmpY:=y;
+ if E.press then Begin
+  TmpX:=E.x;
+  TmpY:=E.y;
   TmpEye:=Eye;
   TmpCtr:=Ctr;
   TmpUPW:=UpW;
-  Case Button Of
+  Case E.Button Of
    1:Status:=1; //Left    =  Scale
    2:Status:=2; //Right   =  Rotate
    4:Status:=3; //Middle  =  Translate
    Else Status:=0
   End
  End Else
- if Release=1 then Status:=0 Else
+ if E.Release then Status:=0 Else
  Case Status Of
   1:Begin
      Tmp1:=Normalize(TmpCtr-TmpEye);
-     Eye:=TmpEye+Tmp1*(ScaleConst*(Y-TmpY)/Console.Width);
+     Eye:=TmpEye+Tmp1*(ScaleConst*(E.Y-TmpY)/Console.Width);
     End;
   2:Begin
      Tmp1:=TmpCtr-TmpEye;
      TmpL:=Mold(Tmp1);
      TmpA:=ArcTan2(Tmp1[3],Tmp1[1])*180/pi;
      TmpB:=ArcTan2(Tmp1[2],Sqrt(Sqr(Tmp1[1])+Sqr(Tmp1[3])))*180/pi;
-     TmpA:=TmpA+RotateConstY*(Y-TmpY)/Console.Width;
-     TmpB:=TmpB-RotateConstX*(X-TmpX)/Console.Height;
+     TmpA:=TmpA+RotateConstY*(E.Y-TmpY)/Console.Width;
+     TmpB:=TmpB-RotateConstX*(E.X-TmpX)/Console.Height;
      TmpM:=RotateY(TmpA)*RotateZ(-TmpB);
      Tmp2:=TmpM*Vec3(-TmpL,0,0);
      Eye:=TmpCtr+Tmp2;
@@ -127,8 +127,8 @@ Begin
   3:Begin
      Tmp1:=Normalize(UpW);
      Tmp2:=Normalize(Cross_Product(UpW,TmpCtr-TmpEye));
-     Tmp1:=Tmp1*(TransConstX*(X-TmpX)/Console.Height)+
-           Tmp2*(TransConstY*(Y-TmpY)/Console.Width);
+     Tmp1:=Tmp1*(TransConstX*(E.X-TmpX)/Console.Height)+
+           Tmp2*(TransConstY*(E.Y-TmpY)/Console.Width);
      Ctr:=TmpCtr+Tmp1;
      Eye:=TmpEye+Tmp1;
     End

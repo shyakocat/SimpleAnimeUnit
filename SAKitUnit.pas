@@ -76,6 +76,15 @@ Type
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
  End;
 
+ SAButtonBox=Object(Element)
+  Caption:TextGraph;
+  MouseDownPic,MouseUpPic,MouseOverPic:pBaseGraph;
+  MouseClickDo,MouseOverDo,MouseOutDo:MouseProc;
+  KeyDo:KeyProc;
+  NonDo:NonProc;
+  Constructor Create(_H,_W:Longint);
+ End;
+
 
 implementation
 
@@ -540,5 +549,25 @@ Begin
  SelectObject(Dc,hOldFont);
  DeleteObject(hFont)
 End;
+
+// Procedure SAButtonBoxMouseDeal()
+
+Constructor SAButtonBox.Create(_H,_W:Longint);
+Begin
+ Role.Create();
+ Acts:=NULLAnimeTag;
+ Talk:=NULLAnimeLog;
+ Caption.Create;
+ MouseDownPic:=Nil;
+ MouseUpPic:=Nil;
+ MouseOverPic:=Nil;
+ MouseClickDo:=Nil;
+ MouseOverDo:=Nil;
+ MouseOutDo:=Nil;
+ KeyDo:=Nil;
+ NonDo:=Nil;
+End;
+
+
 
 end.

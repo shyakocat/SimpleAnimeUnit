@@ -328,21 +328,20 @@ type
  SAMouseEvent=Packed Record x,y,button:Longint; press,release:Boolean End;
  SAKeyEvent=Packed Record key:Longint; press,release,alt,shift,ctrl:Boolean End;
 
- MouseProc=procedure(obj:pAnimeObj;tag:pAnimeTag;Const E:SAMouseEvent;inner:ShortInt);
-   KeyProc=procedure(obj:pAnimeObj;tag:pAnimeTag;Const E:SAKeyEvent);
-   NonProc=procedure(obj:pAnimeObj;tag:pAnimeTag);
+ MouseProc=procedure(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+   KeyProc=procedure(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
+   NonProc=procedure(Env:pElement;Below:pGraph);
 
  AnimeLog=packed object
-  RegObj:pAnimeObj;
-  RegTag:pAnimeTag;
+  Enable:Boolean;
   LastInner:shortint;
   MouseEvent:MouseProc;
   KeyEvent:KeyProc;
   NonEvent:NonProc;
   Constructor Create;
-  procedure DealMouse(x,y,button:longint;press,release:boolean);
-  procedure DealKey(key:Longint;press,release,alt,shift,ctrl:Boolean);
-  procedure DealNon();
+  procedure DealMouse(Env:pElement;Below:pGraph;x,y,button:longint;press,release:boolean);
+  procedure DealKey(Env:pElement;Below:pGraph;key:Longint;press,release,alt,shift,ctrl:Boolean);
+  procedure DealNon(Env:pElement;Below:pGraph);
  end;
 
 
@@ -384,6 +383,8 @@ type
   procedure DisplayBlend(tp:shortint);
   procedure Communication;
   Procedure Communication(Const L:EList);
+  procedure Communication(Below:pGraph);
+  procedure Communication(Below:pGraph;Const L:EList);
  end;
 
 
@@ -2773,15 +2774,14 @@ end;
 
 Constructor AnimeLog.Create;
 begin
- RegObj:=nil;
- RegTag:=nil;
+ Enable:=True;
  LastInner:=0;
  MouseEvent:=nil;
  KeyEvent:=nil;
  NonEvent:=nil
 end;
 
-procedure AnimeLog.DealMouse(x,y,button:longint;press,release:boolean);
+procedure AnimeLog.DealMouse(Env:pElement;Below:pGraph;x,y,button:longint;press,release:boolean);
 var
  _inner:shortint;
  tmpobj:AnimeObj;
@@ -2789,27 +2789,27 @@ var
  tmp:SAMouseEvent;
 begin
  if MouseEvent=nil then exit;
- tmpobj:=RegObj^; tmptag:=RegTag^;
+ tmpobj:=Env^.Role; tmptag:=Env^.Acts;
  tmptag.Process; tmpobj.Process(tmptag);
  _inner:=ord(tmpobj.inner(y,x)); if _inner<>LastInner then inc(_inner,2);
  tmp.x:=y; tmp.y:=x; tmp.button:=button; tmp.press:=press; tmp.release:=release;
- MouseEvent(RegObj,RegTag,Tmp,_inner);
+ MouseEvent(Env,Below,Tmp,_inner);
  LastInner:=_inner and 1
 end;
 
-procedure AnimeLog.DealKey(key:longint;press,release,alt,shift,ctrl:Boolean);
+procedure AnimeLog.DealKey(Env:pElement;Below:pGraph;key:longint;press,release,alt,shift,ctrl:Boolean);
 Var
  tmp:SAKeyEvent;
 begin
  if KeyEvent=nil then exit;
  tmp.key:=key; tmp.press:=press; tmp.release:=release;
  tmp.alt:=alt; tmp.shift:=shift; tmp.ctrl:=ctrl;
- KeyEvent(RegObj,RegTag,Tmp)
+ KeyEvent(Env,Below,Tmp)
 end;
 
-procedure AnimeLog.DealNon();
+procedure AnimeLog.DealNon(Env:pElement;Below:pGraph);
 begin
- if NonEvent<>nil then NonEvent(RegObj,RegTag)
+ if NonEvent<>nil then NonEvent(Env,Below)
 end;
 
 //Object-AnimeLog-End;
@@ -3226,15 +3226,10 @@ begin Display(Screen) end;
 
 procedure Stage.AttachLogic(id:longint;const _log:AnimeLog);
 begin
- with Member.Items[id] do
- begin
-  Talk:=_Log;
-  Talk.RegObj:=@Role;
-  Talk.RegTag:=@Acts;
- end
+ Member.Items[id].Talk:=_Log
 end;
 
-procedure Stage.Communication;
+procedure Stage.Communication(Below:pGraph);
 var
  i:longint;
  tmpM:IPTCMouseEvent;
@@ -3268,8 +3263,9 @@ begin
     End;
     for i:=1 to Member.Size do
      if Member.Items[i].Role.Visible then
+     If Member.Items[i].Talk.Enable Then
       With SAMe Do
-      Member.Items[i].Talk.DealMouse(x,y,button,press,release)
+      Member.Items[i].Talk.DealMouse(@Member.Items[i],Below,x,y,button,press,release)
    end
   else
   if Supports(Event,IPTCKeyEvent) then
@@ -3283,14 +3279,17 @@ begin
     SAKe.ctrl:=tmpK.Control;
     for i:=1 to Member.Size do
      if Member.Items[i].Role.Visible then
+     If Member.Items[i].Talk.Enable Then
       With SAKe Do
-      Member.Items[i].Talk.DealKey(key,press,release,alt,shift,ctrl)
+      Member.Items[i].Talk.DealKey(@Member.Items[i],Below,key,press,release,alt,shift,ctrl)
    end;
  end;
- for i:=1 to Member.Size do Member.Items[i].Talk.DealNon()
+ for i:=1 to Member.Size do
+ If Member.Items[i].Talk.Enable Then
+  Member.Items[i].Talk.DealNon(@Member.Items[i],Below)
 end;
 
-procedure Stage.Communication(Const L:EList);
+procedure Stage.Communication(Below:pGraph;Const L:EList);
 var
  i,j:longint;
  tmpM:IPTCMouseEvent;
@@ -3325,8 +3324,9 @@ begin
     End;
     for i:=1 to Member.Size do
      if Member.Items[i].Role.Visible then
+     If Member.Items[i].Talk.Enable Then
       With SAMe Do
-      Member.Items[i].Talk.DealMouse(x,y,button,press,release)
+      Member.Items[i].Talk.DealMouse(@Member.Items[i],Below,x,y,button,press,release)
    end
   else
   if Supports(Event,IPTCKeyEvent) then
@@ -3340,12 +3340,25 @@ begin
     SAKe.ctrl:=tmpK.Control;
     for i:=1 to Member.Size do
      if Member.Items[i].Role.Visible then
+     If Member.Items[i].Talk.Enable Then
       With SAKe Do
-      Member.Items[i].Talk.DealKey(key,press,release,alt,shift,ctrl)
+      Member.Items[i].Talk.DealKey(@Member.Items[i],Below,key,press,release,alt,shift,ctrl)
    end
  end;
- for i:=1 to Member.Size do Member.Items[i].Talk.DealNon()
+ for i:=1 to Member.Size do
+ If Member.Items[i].Talk.Enable Then
+  Member.Items[i].Talk.DealNon(@Member.Items[i],Below)
 end;
+
+Procedure Stage.Communication;
+Begin
+ Communication(@Screen)
+End;
+
+Procedure Stage.Communication(Const L:EList);
+Begin
+ Communication(@Screen,L)
+End;
 
 destructor Stage.Free;
 var i:longint;

@@ -142,25 +142,25 @@ begin
  Run.Assign('result',0);
 end;
 
- procedure exit_key(obj:pAnimeObj;tag:pAnimeTag;Const E:SAKeyEvent);
+ procedure exit_key(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
  begin
   if Not E.Release then Exit;
   if E.key=27 then halt
  end;
 
- procedure exitsave_key(obj:pAnimeObj;tag:pAnimeTag;Const E:SAKeyEvent);
+ procedure exitsave_key(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
  begin
   if Not E.Release then Exit;
   if E.key=27 then halt;
   if E.key=83 then SaveSchedule
  end;
 
- procedure text_mouse(obj:pAnimeObj;tag:pAnimeTag;Const E:SAMouseEvent;inner:Shortint);
+ procedure text_mouse(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
  begin
   if (E.button=1)and(E.press) then ClickText:=True
  end;
 
- procedure text_key(obj:pAnimeObj;tag:pAnimeTag;Const E:SAKeyEvent);
+ procedure text_key(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
  begin
   if Not E.Release then Exit;
   if E.key=27 then halt;
@@ -168,11 +168,11 @@ end;
   if E.key=83 then SaveSchedule
  end;
 
- procedure select_mouse(obj:pAnimeObj;tag:pAnimeTag;Const E:SAMouseEvent;inner:ShortInt);
+ procedure select_mouse(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  begin
-  if inner=3 then obj^.Alpha:=0.85 else
-  if inner=2 then obj^.Alpha:=0.5;
-  if (inner and 1=1)and(E.button=1)and(E.press) then obj^.Alpha:=1
+  if inner=3 then Env^.Role.Alpha:=0.85 else
+  if inner=2 then Env^.Role.Alpha:=0.5;
+  if (inner and 1=1)and(E.button=1)and(E.press) then Env^.Role.Alpha:=1
  end;
 
 procedure DialogInit(c:Color;const a:real);
@@ -838,7 +838,7 @@ begin
 
   TestMouse(tmpM);
   TestKey(tmpK);
-  X:=TmpM.X; Y:=TmpM.Y; Z:=TmpM.Button;
+  if tmpM.X<>0 Then Begin X:=TmpM.X; Y:=TmpM.Y; Z:=TmpM.Button End;
   Key:=TmpK.Key; KeyRelease:=Ord(TmpK.Release);
   if x<>-1 then
   begin
@@ -955,7 +955,7 @@ begin
 
   TestMouse(tmpM);
   TestKey(tmpK);
-  X:=tmpM.X; Y:=tmpM.Y; Z:=tmpM.Button;
+  if tmpM.X<>0 Then Begin X:=tmpM.X; Y:=tmpM.Y; Z:=tmpM.Button End;
   Key:=TmpK.Key; KeyRelease:=Ord(TmpK.Release);
   if x<>-1 then
   begin
@@ -1078,32 +1078,32 @@ begin
  halt
 end;
 
- procedure SelStart(obj:pAnimeObj;tag:pAnimetag;Const E:SAMouseEvent;inner:Shortint);
+ procedure SelStart(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
  begin
   if inner and 2=2 then FreshNece:=True;
 
-  if inner=3 then obj^.SetAlpha(1) else
-  if inner=2 then obj^.SetAlpha(0.6);
+  if inner=3 then Env^.Role.SetAlpha(1) else
+  if inner=2 then Env^.Role.SetAlpha(0.6);
 
   if (inner and 1=1)and(E.button=1)and(E.press) then GameStart
  end;
 
- procedure SelContinue(obj:pAnimeObj;tag:pAnimetag;Const E:SAMouseEvent;inner:Shortint);
+ procedure SelContinue(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
  begin
   if inner and 2=2 then FreshNece:=True;
 
-  if inner=3 then obj^.SetAlpha(1) else
-  if inner=2 then obj^.SetAlpha(0.6);
+  if inner=3 then Env^.Role.SetAlpha(1) else
+  if inner=2 then Env^.Role.SetAlpha(0.6);
 
   if (inner and 1=1)and(E.button=1)and(E.press) then GameContinue
  end;
 
- procedure SelExit(obj:pAnimeObj;tag:pAnimetag;Const E:SAMouseEvent;inner:ShortInt);
+ procedure SelExit(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  begin
   if inner and 2=2 then FreshNece:=True;
 
-  if inner=3 then obj^.SetAlpha(1) else
-  if inner=2 then obj^.SetAlpha(0.6);
+  if inner=3 then Env^.Role.SetAlpha(1) else
+  if inner=2 then Env^.Role.SetAlpha(0.6);
 
   if (inner and 1=1)and(E.button=1)and(E.press) then GameExit
  end;
@@ -1185,7 +1185,7 @@ begin
 
 
  CoBack.Create;
- CoBack.LoadPNG('image/bg000.png');
+ CoBack.LoadPNG(backimage);
  CoBack_obj.Create;
  CoBack_obj.Create(CoBack);
  CoBack_obj.SetAlpha(0);
@@ -1210,6 +1210,7 @@ begin
 
  Init('SAGÄ£ÄâÆ÷ by shyakocat    '+GAMENAME,CoBack.Width,CoBack.Height);
  repeat
+  If Not ConsoleUsing Then Halt;
   Lock;
   ScreenClear;
   Commence.Display;
@@ -1252,6 +1253,7 @@ begin
  CommenceText.AttachAnime(CoRead_id,CoSel_tg);
 
  repeat
+  If Not ConsoleUsing Then Halt;
   Lock;
   ScreenClear;
   Commence.Display;
