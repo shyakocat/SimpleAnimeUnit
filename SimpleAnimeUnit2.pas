@@ -27,6 +27,10 @@ var
  UpdateFPS:Int64;
  FPSCount,LastFPS:Longint;
 
+
+
+ MACMouseDown:Boolean=False;
+
 //Common Type
 type
  generic List<T>=object
@@ -194,6 +198,7 @@ type
   procedure reverse(_rv:Longint);
   function cut(x1,y1,x2,y2:longint):Graph;
   function cut:Graph;
+  Function Adapt(limitH,limitW:Longint):Graph;
   function LinearMapped(x1,y1,x2,y2,x3,y3,x4,y4:real):Graph;
   function ColorBlend(const G:Graph;x,y:longint;blendtp:shortint):Graph;
   procedure AddText(const s:ansistring;fontsize:longint;const c:Color;_x,_y:longint);
@@ -262,6 +267,7 @@ type
   Procedure SetText(Const Str:Ansistring);
   Procedure SetSize(_s:Longint);
   Procedure SetType(Const tp:Ansistring);
+  Function Cut:TextGraph;
   Function CountWidth:Longint;
   Function Reproduce:pBaseGraph;Virtual;
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
@@ -311,6 +317,8 @@ type
   Constructor Create;
   Constructor Create(const a:BaseGraph);
   Destructor Free;
+  Function Width:Longint;
+  Function Height:Longint;
   procedure SetXY(_x,_y:longint);
   procedure SetClip(_x1,_y1,_x2,_y2:longint);
   procedure SetRotate(_r:single);
@@ -352,12 +360,14 @@ type
   Constructor Create;
   Constructor Create(const A:AnimeObj);
   Constructor Create(const A:AnimeObj;const B:AnimeTag;const C:AnimeLog);
-  Destructor Free;
-  Function Cut:Element;
+  Function Width:Longint;
+  Function Height:Longint;
+  Function Reproduce:pElement;Virtual;
+  Destructor Free;Virtual;
  end;
 
  Stage=object
-  Member:Specialize List<Element>;
+  Member:Specialize List<pElement>;
   constructor Create;
   destructor Free;
   function Size:longint;
@@ -939,7 +949,9 @@ Begin
    tmpB:=Event as IPTCMouseButtonEvent;
    x:=tmpB.X;
    y:=tmpB.Y;
-   button:=GetMouseCode(tmpB.button)
+   button:=GetMouseCode(tmpB.button);
+   If tmpB.Press Then MACMouseDown:=True;
+   If tmpB.Release Then MACMouseDown:=False;
   End
   Else
   Begin
@@ -969,7 +981,9 @@ Begin
    tmpB:=Event as IPTCMouseButtonEvent;
    x:=tmpB.X;
    y:=tmpB.Y;
-   button:=GetMouseCode(tmpB.button)
+   button:=GetMouseCode(tmpB.button);
+   If tmpB.Press Then MACMouseDown:=True;
+   If tmpB.Release Then MACMouseDown:=False;
   End
   Else
   Begin
@@ -1001,7 +1015,9 @@ Begin
    E.y:=tmpB.Y;
    E.button:=GetMouseCode(tmpB.button);
    E.press:=tmpB.press;
-   E.release:=tmpB.release
+   E.release:=tmpB.release;
+   If tmpB.Press Then MACMouseDown:=True;
+   If tmpB.Release Then MACMouseDown:=False;
   End
   Else
   Begin
@@ -1035,7 +1051,9 @@ Begin
    E.y:=tmpB.Y;
    E.button:=GetMouseCode(tmpB.button);
    E.press:=tmpB.press;
-   E.release:=tmpB.release
+   E.release:=tmpB.release;
+   If tmpB.Press Then MACMouseDown:=True;
+   If tmpB.Release Then MACMouseDown:=False;
   End
   Else
   Begin
@@ -1596,6 +1614,14 @@ begin
  cut.Canvas:=GetMem(bits);
  Move(Canvas^,Cut.Canvas^,bits)
 end;
+
+Function Graph.Adapt(limitH,limitW:Longint):Graph;
+Var ScaleFactor:Single;
+Begin
+ ScaleFactor:=Math.Max(LimitH/Height,LimitW/Width);
+ Adapt:=Cut;
+ Opt_Scale(Adapt,ScaleFactor,ScaleFactor)
+End;
 
 Function Graph.Reproduce:pBaseGraph;
 var Tmp:pGraph;
@@ -2300,6 +2326,23 @@ Begin
  Width:=CountWidth;
 End;
 
+Function TextGraph.Cut:TextGraph;
+Begin
+ Cut.Create;
+ Cut.Text:=Text;
+ Cut.FontType:=FontType;
+ Cut.FontSize:=FontSize;
+ Cut.FontColor:=FontColor;
+ Cut.FontAngle:=FontAngle;
+ Cut.Bold:=Bold;
+ Cut.Italic:=Italic;
+ Cut.UnderLine:=UnderLine;
+ Cut.StrikeOut:=StrikeOut;
+ Cut.CharSet:=CharSet;
+ Cut.Height:=Height;
+ Cut.Width:=Width;
+ENd;
+
 Procedure TextGraph.SetText(Const Str:AnsiString);
 Begin
  Text:=Str;
@@ -2400,7 +2443,7 @@ Begin
  FreeMem(buf);
  DeleteObject(hbmp);
  DeleteDC(dc);
- DrawTo(Clip,A,ClipX1,ClipY1)
+ DrawTo(Clip,A,ClipX1-1,ClipY1-1)
 End;
 
 Function TextGraph.Reproduce:pBaseGraph;
@@ -2486,6 +2529,12 @@ begin
  ScaleY:=1;
  Source:=a.ReProduce;
 end;
+
+Function AnimeObj.Width:Longint;
+Begin Exit(Source^.Width) End;
+
+Function AnimeObj.Height:Longint;
+Begin Exit(Source^.Height) End;
 
 procedure AnimeObj.SetXY(_x,_y:longint);
 begin
@@ -2940,16 +2989,23 @@ begin
  talk:=C;
 end;
 
-Function Element.Cut:Element;
+Function Element.Reproduce:pElement;
+Var Tmp:pElement;
 begin
- Cut:=Self;
- Cut.Role.Source:=Role.Source^.Reproduce
+ New(Tmp,Create(Role,Acts,Talk));
+ Exit(Tmp)
 end;
 
 Destructor Element.Free;
 Begin
  Role.Free
 End;
+
+FUnction Element.Width:Longint;
+Begin Exit(Role.Source^.Width) End;
+
+Function Element.Height:Longint;
+Begin Exit(Role.Source^.Height) End;
 
 //Object-Element-End
 
@@ -2966,33 +3022,33 @@ begin
 end;
 
 function Stage.AddObj(const _role:AnimeObj):longint;
-var Tmp:Element;
+var Tmp:pElement;
 begin
- Tmp.Create(_role);
+ New(Tmp,Create(_role));
  Member.Pushback(Tmp);
  exit(Member.Size)
 end;
 
 function Stage.AddObj(const _role:BaseGraph):longint;
-var Tmp:Element;
+var Tmp:pElement;
 begin
- Tmp.Create;
- Tmp.Role.Create(_role);
- Tmp.Acts:=NULLAnimeTag;
- Tmp.Talk:=NULLAnimeLog;
+ New(Tmp,Create);
+ Tmp^.Role.Create(_role);
+ Tmp^.Acts:=NULLAnimeTag;
+ Tmp^.Talk:=NULLAnimeLog;
  Member.Pushback(Tmp);
  Exit(Member.Size)
 end;
 
 function Stage.AddObj(const _role:Element):Longint;
 begin
- Member.Pushback(_role.Cut);
+ Member.Pushback(_Role.Reproduce);
  Exit(Member.Size)
 end;
 
 function Stage.AnimeEnd(id:longint):boolean;
 begin
- exit(not Member.Items[id].Acts.Enable)
+ exit(not Member.Items[id]^.Acts.Enable)
 end;
 
 function Stage.AnimeAllEnd:boolean;
@@ -3008,8 +3064,8 @@ var
  tmpobj:AnimeObj;
  tmptag:AnimeTag;
 begin
- tmpobj:=Member.Items[id].Role;
- tmptag:=Member.Items[id].Acts;
+ tmpobj:=Member.Items[id]^.Role;
+ tmptag:=Member.Items[id]^.Acts;
  tmptag.Process;
  tmpobj.Process(tmptag);
  IsInner:=tmpobj.inner(x,y);
@@ -3017,19 +3073,19 @@ end;
 
 function Stage.Get(id:longint):pAnimeObj;
 begin
- exit(@Member.Items[id].Role)
+ exit(@Member.Items[id]^.Role)
 end;
 
 procedure Stage.DeleteObj(id:longint);
 begin
- Member.Items[id].Role.Visible:=False;
- Member.Items[id].Acts.Off
+ Member.Items[id]^.Role.Visible:=False;
+ Member.Items[id]^.Acts.Off
 end;
 
 procedure Stage.ReplaceObj(id:longint;const _role:AnimeObj);
 begin
- Member.Items[id].Free;
- with Member.Items[id] do
+ Member.Items[id]^.Free;
+ with Member.Items[id]^ do
  Begin
   Create;
   Role:=_role.cut;
@@ -3041,7 +3097,7 @@ end;
 procedure Stage.AttachAnime(id:longint;const _act:AnimeTag);
 var tag:pAnimeTag;
 begin
- tag:=@Member.Items[id].Acts;
+ tag:=@Member.Items[id]^.Acts;
  tag^:=_act;
  tag^.On;
  tag^.Start;
@@ -3049,7 +3105,7 @@ end;
 
 procedure Stage.StopAnime(id:longint);
 begin
- with Member.Items[id] do
+ with Member.Items[id]^ do
  begin
   Acts.Process;
   Role.Process(Acts);
@@ -3157,7 +3213,7 @@ var
  DTest:pGraph;
  DrawObj,DrawTmp:Graph;
 begin
- with Member.Items[id] do
+ with Member.Items[id]^ do
  if not Acts.Enable then
   tmp:=Role
  else
@@ -3174,7 +3230,7 @@ begin
   end;
  with Tmp do
  begin
-  DTest:=Source^.Recovery(@Member.Items[id],@Below);
+  DTest:=Source^.Recovery(Member.Items[id],@Below);
   if DTest=Nil then Exit;
   DrawObj:=DTest^;
   DrawObj.Reverse(Reverse);
@@ -3202,14 +3258,14 @@ procedure Stage.Display(Var Below:Graph);
 var i:longint;
 begin
  for i:=1 to Member.Size do
- if Member.Items[i].Role.Visible then DisplayObj(i,Below)
+ if Member.Items[i]^.Role.Visible then DisplayObj(i,Below)
 end;
 
 procedure Stage.DisplayBlend(tp:shortint;Var Below:Graph);
 var i:longint;
 begin
  for i:=1 to Member.Size do
- if Member.Items[i].Role.Visible then DisplayBlendObj(i,tp,Below)
+ if Member.Items[i]^.Role.Visible then DisplayBlendObj(i,tp,Below)
 end;
 
 Procedure Stage.DisplayBlendObj(id:Longint;tp:Shortint);
@@ -3226,7 +3282,7 @@ begin Display(Screen) end;
 
 procedure Stage.AttachLogic(id:longint;const _log:AnimeLog);
 begin
- Member.Items[id].Talk:=_Log
+ Member.Items[id]^.Talk:=_Log
 end;
 
 procedure Stage.Communication(Below:pGraph);
@@ -3250,7 +3306,9 @@ begin
      SAMe.y:=tmpB.Y;
      SAMe.button:=GetMouseCode(tmpB.Button);
      SAMe.press:=tmpB.Press;
-     SAMe.release:=tmpB.Release
+     SAMe.release:=tmpB.Release;
+     If tmpB.Press Then MACMouseDown:=True;
+     If tmpB.Release Then MACMouseDown:=False;
     End
     Else
     Begin
@@ -3262,10 +3320,10 @@ begin
      SAMe.release:=False
     End;
     for i:=1 to Member.Size do
-     if Member.Items[i].Role.Visible then
-     If Member.Items[i].Talk.Enable Then
+     if Member.Items[i]^.Role.Visible then
+     If Member.Items[i]^.Talk.Enable Then
       With SAMe Do
-      Member.Items[i].Talk.DealMouse(@Member.Items[i],Below,x,y,button,press,release)
+      Member.Items[i]^.Talk.DealMouse(Member.Items[i],Below,x,y,button,press,release)
    end
   else
   if Supports(Event,IPTCKeyEvent) then
@@ -3278,15 +3336,15 @@ begin
     SAKe.shift:=tmpK.Shift;
     SAKe.ctrl:=tmpK.Control;
     for i:=1 to Member.Size do
-     if Member.Items[i].Role.Visible then
-     If Member.Items[i].Talk.Enable Then
+     if Member.Items[i]^.Role.Visible then
+     If Member.Items[i]^.Talk.Enable Then
       With SAKe Do
-      Member.Items[i].Talk.DealKey(@Member.Items[i],Below,key,press,release,alt,shift,ctrl)
+      Member.Items[i]^.Talk.DealKey(Member.Items[i],Below,key,press,release,alt,shift,ctrl)
    end;
  end;
  for i:=1 to Member.Size do
- If Member.Items[i].Talk.Enable Then
-  Member.Items[i].Talk.DealNon(@Member.Items[i],Below)
+ If Member.Items[i]^.Talk.Enable Then
+  Member.Items[i]^.Talk.DealNon(Member.Items[i],Below)
 end;
 
 procedure Stage.Communication(Below:pGraph;Const L:EList);
@@ -3311,7 +3369,9 @@ begin
      SAMe.y:=tmpB.Y;
      SAMe.button:=GetMouseCode(tmpB.Button);
      SAMe.press:=tmpB.Press;
-     SAMe.release:=tmpB.Release
+     SAMe.release:=tmpB.Release;
+     If tmpB.Press Then MACMouseDown:=True;
+     If tmpB.Release Then MACMouseDown:=False;
     End
     Else
     Begin
@@ -3323,10 +3383,10 @@ begin
      SAMe.release:=False
     End;
     for i:=1 to Member.Size do
-     if Member.Items[i].Role.Visible then
-     If Member.Items[i].Talk.Enable Then
+     if Member.Items[i]^.Role.Visible then
+     If Member.Items[i]^.Talk.Enable Then
       With SAMe Do
-      Member.Items[i].Talk.DealMouse(@Member.Items[i],Below,x,y,button,press,release)
+      Member.Items[i]^.Talk.DealMouse(Member.Items[i],Below,x,y,button,press,release)
    end
   else
   if Supports(Event,IPTCKeyEvent) then
@@ -3339,15 +3399,15 @@ begin
     SAKe.shift:=tmpK.Shift;
     SAKe.ctrl:=tmpK.Control;
     for i:=1 to Member.Size do
-     if Member.Items[i].Role.Visible then
-     If Member.Items[i].Talk.Enable Then
+     if Member.Items[i]^.Role.Visible then
+     If Member.Items[i]^.Talk.Enable Then
       With SAKe Do
-      Member.Items[i].Talk.DealKey(@Member.Items[i],Below,key,press,release,alt,shift,ctrl)
+      Member.Items[i]^.Talk.DealKey(Member.Items[i],Below,key,press,release,alt,shift,ctrl)
    end
  end;
  for i:=1 to Member.Size do
- If Member.Items[i].Talk.Enable Then
-  Member.Items[i].Talk.DealNon(@Member.Items[i],Below)
+ If Member.Items[i]^.Talk.Enable Then
+  Member.Items[i]^.Talk.DealNon(Member.Items[i],Below)
 end;
 
 Procedure Stage.Communication;
@@ -3363,7 +3423,7 @@ End;
 destructor Stage.Free;
 var i:longint;
 begin
- for i:=1 to Size do Member.Items[i].Role.Source^.Free;
+ for i:=1 to Size do Member.Items[i]^.Role.Source^.Free;
  Member.Clear
 end;
 

@@ -233,7 +233,7 @@ begin
  if idx<>'nil' then
  if not FileExists(idx) then begin MessageBox(0,pchar('±³¾°Í¼Æ¬['+idx+']Î´ÕÒµ½'),'´íÎó£ºÕÒ²»µ½±³¾°Í¼Æ¬',mb_ok); halt end;
 
- if Dialog.Size>0 then Dialog.Member.Items[1].Role.Visible:=False;
+ if Dialog.Size>0 then Dialog.Member.Items[1]^.Role.Visible:=False;
 
  if BackGround.Size<>0 then
  begin
@@ -644,7 +644,7 @@ begin
   Option:=0;
 
   for i:=1 to Selection.Size do
-  if Selection.Member.Items[i].Role.Alpha=1 then
+  if Selection.Member.Items[i]^.Role.Alpha=1 then
   begin
    Option:=i;
    Break

@@ -10,6 +10,7 @@ Type
  pMultiGraph=^MultiGraph;
  pBitmapGraph=^BitmapGraph;
 
+
  PureGraph=Object(BaseGraph)
   Color:Color;
   Constructor Create;
@@ -39,6 +40,7 @@ Type
   Function Size:Longint;
   Function SetSelect(X:Longint):Longint;
   Procedure AddPic(Const al:BaseGraph);
+  Function Cut:MultiGraph;
   Function Reproduce:pBaseGraph;Virtual;
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
  End;
@@ -68,6 +70,7 @@ Type
   Procedure DrawArc(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
   Procedure DrawChord(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
   Procedure DrawPie(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
+  Procedure DrawPolygon(p:pPoint;n,_width,_ci,_co:Longint);
   Procedure DrawBezier(p:pPoint;n,_width,_c:Longint);
   Procedure DrawText(x,y:Longint;s:lpCTSTR;c:Longint);
   Procedure DrawText(x,y:Longint;Const T:TextGraph);
@@ -76,13 +79,27 @@ Type
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
  End;
 
+Const
+ SAMouseUp=1;
+ SAMouseOver=2;
+ SAMouseDown=3;
+
+Type
+
+ pSAButtonBox=^SAButtonBox;
+
  SAButtonBox=Object(Element)
+  Plain:MultiGraph;
   Caption:TextGraph;
-  MouseDownPic,MouseUpPic,MouseOverPic:pBaseGraph;
-  MouseClickDo,MouseOverDo,MouseOutDo:MouseProc;
-  KeyDo:KeyProc;
-  NonDo:NonProc;
-  Constructor Create(_H,_W:Longint);
+  CustomHandle:AnimeLog;
+  Constructor Create;
+  Constructor Create(_H,_W:Longint;Const _C:Color);
+  Procedure SetSelect(_SAEtp:ShortInt);
+  Procedure SetPic(_SAEtp:ShortInt;Ind:pBaseGraph);
+  Procedure SetText(Const T:TextGraph);
+  Procedure SetText(Tx:Ansistring);
+  Procedure CountUpdate(_SAEtp:ShortInt);
+  Function Reproduce:pElement;Virtual;
  End;
 
 
@@ -194,6 +211,14 @@ End;
 Function MultiGraph.Size:Longint;
 Begin
  Exit(Alternative.Size)
+End;
+
+Function MultiGraph.Cut:MultiGraph;
+Var i:Longint;
+Begin
+ Cut.Create;
+ For i:=1 to Size Do
+  Cut.Alternative.Pushback(Alternative[i]^.Reproduce)
 End;
 
 Function MultiGraph.Reproduce:pBaseGraph;
@@ -516,6 +541,20 @@ Begin
  DeleteObject(hPen)
 End;
 
+Procedure BitmapGraph.DrawPolygon(p:pPoint;n,_width,_ci,_co:Longint);
+Var
+ hBrush,hPen,hOldBrush,hOldPen:LongWord;
+Begin
+ hBrush:=CreateSolidBrush(_ci);
+ hOldBrush:=SelectObject(Dc,hBrush);
+ hPen:=CreatePen(PS_SOLID,1,_Co);
+ hOldPen:=SelectObject(Dc,hPen);
+ Polygon(Dc,p,n);
+ SelectObject(Dc,hOldBrush);
+ DeleteObject(hBrush);
+ SelectObject(Dc,hOldPen);
+ DeleteObject(hPen)
+End;
 Procedure BitmapGraph.DrawBezier(p:pPOINT;n,_width,_c:Longint);
 Var
  hPen,hOldPen:LongWord;
@@ -550,23 +589,114 @@ Begin
  DeleteObject(hFont)
 End;
 
-// Procedure SAButtonBoxMouseDeal()
+ Procedure SAButtonBoxMouseDeal(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+ Var
+  cEnv:pSAButtonBox;
+ Begin
+  cEnv:=pSAButtonBox(Env);
+  If Inner And 1=0 Then
+   Begin
+    cEnv^.SetSelect(SAMouseUp);
+    cEnv^.Role.Alpha:=0.85
+   End
+  Else
+  If (E.Button=1)And(MACMouseDown) Then
+   Begin
+    cEnv^.SetSelect(SAMouseDown);
+    cEnv^.Role.Alpha:=1;
+    If E.Press Then
+    If cEnv^.CustomHandle.Enable Then
+     cEnv^.CustomHandle.MouseEvent(Env,Below,E,Inner)
+   End
+  Else
+   Begin
+    cEnv^.SetSelect(SAMouseOver);
+    cEnv^.Role.Alpha:=0.9
+   End;
+ End;
 
-Constructor SAButtonBox.Create(_H,_W:Longint);
+Constructor SAButtonBox.Create;
 Begin
- Role.Create();
- Acts:=NULLAnimeTag;
- Talk:=NULLAnimeLog;
- Caption.Create;
- MouseDownPic:=Nil;
- MouseUpPic:=Nil;
- MouseOverPic:=Nil;
- MouseClickDo:=Nil;
- MouseOverDo:=Nil;
- MouseOutDo:=Nil;
- KeyDo:=Nil;
- NonDo:=Nil;
+ Plain.Create;
+ Role.Create;
+ Acts.Create;
+ Talk.Create;
+ CustomHandle.Create;
 End;
+
+Constructor SAButtonBox.Create(_H,_W:Longint;Const _C:Color);
+Var
+ Core:pMultiGraph;
+ TmpG:pPureGraph;
+Begin
+ New(TmpG,Create(_H,_W,_C));
+ Plain.Create;
+ Plain.AddPic(TmpG^);
+ Plain.AddPic(TmpG^);
+ Plain.AddPic(TmpG^);
+ Plain.SetSelect(SAMouseUp);
+ Role.Create(Plain);
+ Role.Alpha:=0.85;
+ Acts.Create;
+ Talk.Create;
+ Caption.Create;
+ CustomHandle.Create;
+ Talk.MouseEvent:=@SAButtonBoxMouseDeal
+End;
+
+Procedure SAButtonBox.SetSelect(_SAEtp:ShortInt);
+Begin
+ pMultiGraph(Role.Source)^.SetSelect(_SAEtp)
+End;
+
+Procedure SAButtonBox.SetPic(_SAEtp:ShortInt;Ind:pBaseGraph);
+Begin
+ If Not(_SAEtp in[1..3]) Then Exit;
+ Plain.Alternative.Items[_SAEtp]^.Free;
+ Plain.Alternative.Items[_SAEtp]:=Ind^.Reproduce;
+ CountUpdate(_SAEtp)
+End;
+
+Procedure SAButtonBox.SetText(Const T:TextGraph);
+Begin
+ Caption:=T.Cut;
+ CountUpdate(1);
+ CountUpdate(2);
+ CountUpdate(3)
+End;
+
+Procedure SAButtonBox.SetText(Tx:Ansistring);
+Begin
+ Caption.Create(Tx);
+ CountUpdate(1);
+ CountUpdate(2);
+ CountUpdate(3)
+End;
+
+Procedure SAButtonBox.CountUpdate(_SAEtp:ShortInt);
+Var
+ obj:pMultiGraph;
+ tmp:pGraph;
+Begin
+ obj:=pMultiGraph(Role.Source);
+ obj^.Alternative.Items[_SAEtp]^.Free;
+ tmp:=Plain.Alternative.Items[_SAEtp]^.Recovery(Nil,Nil);
+ Caption.WriteTo(tmp^,(Height-Caption.Height)Div 2,(Width-Caption.Width)Div 2);
+ obj^.Alternative.Items[_SAEtp]:=Tmp;
+End;
+
+Function SAButtonBox.Reproduce:pElement;
+Var Tmp:pSAButtonBox;
+Begin
+ New(Tmp,Create);
+ Tmp^.Plain:=Plain.Cut;
+ Tmp^.Role:=Role.Cut;
+ Tmp^.Acts:=Acts;
+ Tmp^.Talk:=Talk;
+ Tmp^.CustomHandle:=CustomHandle;
+ Exit(Tmp)
+End;
+
 
 
 

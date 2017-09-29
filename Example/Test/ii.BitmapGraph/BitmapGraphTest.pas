@@ -8,6 +8,7 @@ Var
  i:Longint;
 
  Pt:Array[0..3]Of Point=((X:90;Y:130),(X:60;Y:40),(X:140;Y:150),(X:160;Y:80));
+// Pl:Array[0..4]Of Point=((X:
 Begin
  b.Create(400,360);  //BitmapGraph可直接构建（Create）一张特定大小的全黑图
                      //也可由Graph构建出来（损失透明度）
@@ -28,6 +29,7 @@ Begin
  b.DrawCircle(100,180,30,RGB(0,250,250),RGB(255,255,255));                    //绘制圆
  b.DrawEllipse(Pt[0].x,Pt[0].y,Pt[1].x,Pt[1].y,RGB(128,128,128),RGB(0,0,0));  //绘制椭圆
  b.DrawRect(Pt[2].x,Pt[2].y,Pt[3].x,Pt[3].y,RGB(90,90,90),RGB(255,0,255));    //绘制矩形
+ b.DrawPolygon(@Pt,4,1,RGB(255,255,128),RGB(10,20,30));                       //绘制多边形
  b.DrawBezier(@Pt,4,1,RGB(0,0,0));                                            //绘制贝塞尔曲线
  b.DrawCircle(Pt[0].x,Pt[0].y,8,RGB(0,255,0),RGB(0,0,0));                     //标出贝塞尔曲线的四个锚点
  b.DrawCircle(Pt[1].x,Pt[1].y,8,RGB(0,0,255),RGB(0,0,0));
