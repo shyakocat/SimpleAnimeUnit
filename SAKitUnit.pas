@@ -39,7 +39,7 @@ Type
   Destructor Free;Virtual;
   Function Size:Longint;
   Function SetSelect(X:Longint):Longint;
-  Procedure AddPic(Const al:BaseGraph);
+  Procedure AddPic(Const al:pBaseGraph);
   Function Cut:MultiGraph;
   Function Reproduce:pBaseGraph;Virtual;
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
@@ -62,15 +62,15 @@ Type
   Function GetPixel(_x,_y:Longint):COLORREF;             //unusual
   Procedure Fill(x0,y0,x1,y1,_c:Longint);
   Procedure DrawLine(x0,y0,x1,y1,_style,_width,_c:Longint);
-  Procedure DrawCircle(x,y,r,_ci,_co:Longint);
-  Procedure DrawEllipse(x0,y0,x1,y1,_ci,_co:Longint);
-  Procedure DrawRect(x0,y0,x1,y1,_ci,_co:Longint);
-  Procedure DrawRect(x0,y0,x1,y1,_style,_ci,_co:Longint);
+  Procedure DrawCircle(x,y,r,_ci,_co,_so:Longint);
+  Procedure DrawEllipse(x0,y0,x1,y1,_ci,_co,_so:Longint);
+  Procedure DrawRect(x0,y0,x1,y1,_ci,_co,_so:Longint);
+  Procedure DrawRect(x0,y0,x1,y1,_style,_ci,_co,_so:Longint);
   Procedure DrawBmp(x0,y0,x1,y1:Longint;_f:LPCTSTR);
-  Procedure DrawArc(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
-  Procedure DrawChord(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
-  Procedure DrawPie(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
-  Procedure DrawPolygon(p:pPoint;n,_width,_ci,_co:Longint);
+  Procedure DrawArc(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co,_so:Longint);
+  Procedure DrawChord(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co,_so:Longint);
+  Procedure DrawPie(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co,_so:Longint);
+  Procedure DrawPolygon(p:pPoint;n,_width,_ci,_co,_so:Longint);
   Procedure DrawBezier(p:pPoint;n,_width,_c:Longint);
   Procedure DrawText(x,y:Longint;s:lpCTSTR;c:Longint);
   Procedure DrawText(x,y:Longint;Const T:TextGraph);
@@ -87,18 +87,29 @@ Const
 Type
 
  pSAButtonBox=^SAButtonBox;
+ pSACheckBox=^SACheckBox;
 
  SAButtonBox=Object(Element)
   Plain:MultiGraph;
   Caption:TextGraph;
   CustomHandle:AnimeLog;
   Constructor Create;
-  Constructor Create(_H,_W:Longint;Const _C:Color);
+  Constructor Create1(_H,_W:Longint;Const _C:Color);
+  Constructor Create2(_up,_over,_down:pBaseGraph);
   Procedure SetSelect(_SAEtp:ShortInt);
   Procedure SetPic(_SAEtp:ShortInt;Ind:pBaseGraph);
   Procedure SetText(Const T:TextGraph);
   Procedure SetText(Tx:Ansistring);
   Procedure CountUpdate(_SAEtp:ShortInt);
+  Function Reproduce:pElement;Virtual;
+ End;
+
+ SACheckBox=Object(Element)
+  Check:Boolean;
+  Constructor Create;
+  Constructor Create1;
+  Constructor Create2;
+  Constructor Create3(_up,_down:pBaseGraph);
   Function Reproduce:pElement;Virtual;
  End;
 
@@ -203,9 +214,9 @@ Begin
  Alternative.Clear
 End;
 
-Procedure MultiGraph.AddPic(Const al:BaseGraph);
+Procedure MultiGraph.AddPic(Const al:pBaseGraph);
 Begin
- Alternative.Pushback(al.Reproduce)
+ Alternative.Pushback(al^.Reproduce)
 End;
 
 Function MultiGraph.Size:Longint;
@@ -432,18 +443,18 @@ Begin
  DeleteObject(hPen)
 End;
 
-Procedure BitmapGraph.DrawCircle(x,y,r,_ci,_co:Longint);
+Procedure BitmapGraph.DrawCircle(x,y,r,_ci,_co,_so:Longint);
 Begin
- DrawEllipse(x-r,y-r,x+r,y+r,_ci,_co)
+ DrawEllipse(x-r,y-r,x+r,y+r,_ci,_co,_so)
 End;
 
-Procedure BitmapGraph.DrawEllipse(x0,y0,x1,y1,_ci,_co:Longint);
+Procedure BitmapGraph.DrawEllipse(x0,y0,x1,y1,_ci,_co,_so:Longint);
 Var
  hBrush,hPen,hOldBrush,hOldPen:LongWord;
 Begin
  hBrush:=CreateSolidBrush(_Ci);
  hOldBrush:=SelectObject(Dc,hBrush);
- hPen:=CreatePen(PS_SOLID,1,_Co);
+ hPen:=CreatePen(PS_SOLID,_so,_Co);
  hOldPen:=SelectObject(Dc,hPen);
  Ellipse(Dc,x0,y0,x1,y1);
  SelectObject(Dc,hOldPen);
@@ -452,13 +463,13 @@ Begin
  DeleteObject(hBrush)
 End;
 
-Procedure BitmapGraph.DrawRect(x0,y0,x1,y1,_ci,_co:Longint);
+Procedure BitmapGraph.DrawRect(x0,y0,x1,y1,_ci,_co,_so:Longint);
 Var
  hBrush,hPen,hOldBrush,hOldPen:LongWord;
 Begin
  hBrush:=CreateSolidBrush(_ci);
  hOldBrush:=SelectObject(Dc,hBrush);
- hPen:=CreatePen(PS_SOLID,1,_Co);
+ hPen:=CreatePen(PS_SOLID,_so,_Co);
  hOldPen:=SelectObject(Dc,hPen);
  Rectangle(Dc,x0,y0,x1,y1);
  SelectObject(Dc,hOldBrush);
@@ -467,13 +478,13 @@ Begin
  DeleteObject(hPen)
 End;
 
-Procedure BitmapGraph.DrawRect(x0,y0,x1,y1,_style,_ci,_co:Longint);
+Procedure BitmapGraph.DrawRect(x0,y0,x1,y1,_style,_ci,_co,_so:Longint);
 Var
  hBrush,hPen,hOldBrush,hOldPen:LongWord;
 Begin
  hBrush:=CreateHatchBrush(_style,_ci);
  hOldBrush:=SelectObject(Dc,hBrush);
- hPen:=CreatePen(PS_SOLID,1,_Co);
+ hPen:=CreatePen(PS_SOLID,_so,_Co);
  hOldPen:=SelectObject(Dc,hPen);
  Rectangle(Dc,x0,y0,x1,y1);
  SelectObject(Dc,hOldBrush);
@@ -496,13 +507,13 @@ Begin
  DeleteObject(hBmpPic)
 End;
 
-Procedure BitmapGraph.DrawArc(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
+Procedure BitmapGraph.DrawArc(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co,_so:Longint);
 Var
  hBrush,hPen,hOldBrush,hOldPen:LongWord;
 Begin
  hBrush:=CreateSolidBrush(_ci);
  hOldBrush:=SelectObject(Dc,hBrush);
- hPen:=CreatePen(PS_SOLID,1,_Co);
+ hPen:=CreatePen(PS_SOLID,_so,_Co);
  hOldPen:=SelectObject(Dc,hPen);
  Arc(Dc,x0,y0,x1,y1,Xstart,Ystart,Xend,Yend);
  SelectObject(Dc,hOldBrush);
@@ -511,13 +522,13 @@ Begin
  DeleteObject(hPen)
 End;
 
-Procedure BitmapGraph.DrawChord(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
+Procedure BitmapGraph.DrawChord(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co,_so:Longint);
 Var
  hBrush,hPen,hOldBrush,hOldPen:LongWord;
 Begin
  hBrush:=CreateSolidBrush(_ci);
  hOldBrush:=SelectObject(Dc,hBrush);
- hPen:=CreatePen(PS_SOLID,1,_Co);
+ hPen:=CreatePen(PS_SOLID,_so,_Co);
  hOldPen:=SelectObject(Dc,hPen);
  Chord(Dc,x0,y0,x1,y1,Xstart,Ystart,Xend,Yend);
  SelectObject(Dc,hOldBrush);
@@ -526,13 +537,13 @@ Begin
  DeleteObject(hPen)
 End;
 
-Procedure BitmapGraph.DrawPie(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co:Longint);
+Procedure BitmapGraph.DrawPie(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co,_so:Longint);
 Var
  hBrush,hPen,hOldBrush,hOldPen:LongWord;
 Begin
  hBrush:=CreateSolidBrush(_ci);
  hOldBrush:=SelectObject(Dc,hBrush);
- hPen:=CreatePen(PS_SOLID,1,_Co);
+ hPen:=CreatePen(PS_SOLID,_so,_Co);
  hOldPen:=SelectObject(Dc,hPen);
  Pie(Dc,x0,y0,x1,y1,Xstart,Ystart,Xend,Yend);
  SelectObject(Dc,hOldBrush);
@@ -541,13 +552,13 @@ Begin
  DeleteObject(hPen)
 End;
 
-Procedure BitmapGraph.DrawPolygon(p:pPoint;n,_width,_ci,_co:Longint);
+Procedure BitmapGraph.DrawPolygon(p:pPoint;n,_width,_ci,_co,_so:Longint);
 Var
  hBrush,hPen,hOldBrush,hOldPen:LongWord;
 Begin
  hBrush:=CreateSolidBrush(_ci);
  hOldBrush:=SelectObject(Dc,hBrush);
- hPen:=CreatePen(PS_SOLID,1,_Co);
+ hPen:=CreatePen(PS_SOLID,_so,_Co);
  hOldPen:=SelectObject(Dc,hPen);
  Polygon(Dc,p,n);
  SelectObject(Dc,hOldBrush);
@@ -589,7 +600,16 @@ Begin
  DeleteObject(hFont)
 End;
 
- Procedure SAButtonBoxMouseDeal(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+Constructor SAButtonBox.Create;
+Begin
+ Plain.Create;
+ Role.Create;
+ Acts.Create;
+ Talk.Create;
+ CustomHandle.Create;
+End;
+
+ Procedure SAButtonBoxMouseDeal1(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  Var
   cEnv:pSAButtonBox;
  Begin
@@ -615,25 +635,16 @@ End;
    End;
  End;
 
-Constructor SAButtonBox.Create;
-Begin
- Plain.Create;
- Role.Create;
- Acts.Create;
- Talk.Create;
- CustomHandle.Create;
-End;
-
-Constructor SAButtonBox.Create(_H,_W:Longint;Const _C:Color);
+Constructor SAButtonBox.Create1(_H,_W:Longint;Const _C:Color);
 Var
  Core:pMultiGraph;
  TmpG:pPureGraph;
 Begin
  New(TmpG,Create(_H,_W,_C));
  Plain.Create;
- Plain.AddPic(TmpG^);
- Plain.AddPic(TmpG^);
- Plain.AddPic(TmpG^);
+ Plain.AddPic(TmpG);
+ Plain.AddPic(TmpG);
+ Plain.AddPic(TmpG);
  Plain.SetSelect(SAMouseUp);
  Role.Create(Plain);
  Role.Alpha:=0.85;
@@ -641,8 +652,47 @@ Begin
  Talk.Create;
  Caption.Create;
  CustomHandle.Create;
- Talk.MouseEvent:=@SAButtonBoxMouseDeal
+ Talk.MouseEvent:=@SAButtonBoxMouseDeal1
 End;
+
+ Procedure SAButtonBoxMouseDeal2(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+ Var
+  cEnv:pSAButtonBox;
+ Begin
+  cEnv:=pSAButtonBox(Env);
+  If Inner And 1=0 Then
+   Begin
+    cEnv^.SetSelect(SAMouseUp);
+   End
+  Else
+  If (E.Button=1)And(MACMouseDown) Then
+   Begin
+    cEnv^.SetSelect(SAMouseDown);
+    If E.Press Then
+    If cEnv^.CustomHandle.Enable Then
+     cEnv^.CustomHandle.MouseEvent(Env,Below,E,Inner)
+   End
+  Else
+   Begin
+    cEnv^.SetSelect(SAMouseOver);
+   End;
+ End;
+
+Constructor SAButtonBox.Create2(_up,_over,_down:pBaseGraph);
+Begin
+ Plain.Create;
+ Plain.AddPic(_up);
+ Plain.AddPic(_over);
+ Plain.AddPic(_down);
+ Plain.SetSelect(SAMouseUp);
+ Role.Create(Plain);
+ Acts.Create;
+ Talk.Create;
+ Caption.Create;
+ CustomHandle.Create;
+ Talk.MouseEvent:=@SAButtonBoxMouseDeal2
+End;
+
 
 Procedure SAButtonBox.SetSelect(_SAEtp:ShortInt);
 Begin
@@ -697,7 +747,103 @@ Begin
  Exit(Tmp)
 End;
 
+Constructor SACheckBox.Create;
+Begin
+ Check:=False
+End;
 
+ Procedure SACheckBoxMouseDeal1(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+ Var
+  cEnv:pSACheckBox;
+ Begin
+  cEnv:=pSACheckBox(Env);
+  If (inner And 1=1)And(E.Button=1)And(E.Press) Then
+   cEnv^.Check:=Not cEnv^.Check;
+  pMultiGraph(Env^.Role.Source)^.SetSelect(1+Ord(cEnv^.Check));
+ End;
+
+Constructor SACheckBox.Create1;
+Var
+ Tmp:MultiGraph;
+ tBG:BitmapGraph;
+ tG:Graph;
+ tTG:TextGraph;
+Begin
+ Check:=False;
+ Tmp.Create;
+ tBG.Create(12,12);
+ tBG.DrawRect(1,1,12,12,RGB(254,254,254),RGB(216,212,204),1);
+ tG:=tBG.ToGraph;
+ Tmp.AddPic(@tG);
+ tBG.Free;
+ tTG.Create('¡Ì');
+ tTG.SetSize(12);
+ tTG.Bold:=True;
+ tTG.FontColor:=Color_LGreen;
+ tTG.WriteTo(tG,0,1);
+ Tmp.AddPic(@tG);
+ Tmp.SetSelect(1);
+ tG.Free;
+ tTG.Free;
+ Role.Create(Tmp);
+ Tmp.Free;
+ Acts.Create;
+ Talk.Create;
+ Talk.MouseEvent:=@SACheckBoxMouseDeal1
+End;
+
+Constructor SACheckBox.Create2;
+Var
+ Tmp:MultiGraph;
+ tBG:BitmapGraph;
+ tG:Graph;
+Begin
+ Check:=False;
+ Tmp.Create;
+ tBG.Create(12,12);
+ tBG.DrawEllipse(1,1,12,12,RGB(254,254,254),RGB(216,212,204),1);
+ tBG.DrawEllipse(3,3,10,10,RGB(254,254,254),RGB(216,212,204),1);
+ tG:=tBG.ToGraph;
+ Tmp.AddPic(@tG);
+ tG.Free;
+ tBG.DrawEllipse(3,3,10,10,RGB(128,255,0),RGB(216,212,204),1);
+ tG:=tBG.ToGraph;
+ Tmp.AddPic(@tG);
+ Tmp.SetSelect(1);
+ tG.Free;
+ Role.Create(Tmp);
+ Tmp.Free;
+ Acts.Create;
+ Talk.Create;
+ Talk.MouseEvent:=@SACheckBoxMouseDeal1
+End;
+
+Constructor SACheckBox.Create3(_up,_down:pBaseGraph);
+Var
+ Tmp:MultiGraph;
+Begin
+ Check:=False;
+ Tmp.Create;
+ Tmp.AddPic(_up);
+ Tmp.AddPic(_down);
+ Tmp.SetSelect(1);
+ ROle.Create(Tmp);
+ Tmp.Free;
+ Acts.Create;
+ Talk.Create;
+ Talk.MouseEvent:=@SACheckBoxMouseDeal1
+End;
+
+Function SACheckBox.Reproduce:pElement;
+Var Tmp:pSACheckBox;
+Begin
+ New(Tmp,Create);
+ Tmp^.Role:=Role.Cut;
+ Tmp^.Acts:=Acts;
+ Tmp^.Talk:=Talk;
+ Tmp^.Check:=Check;
+ Exit(Tmp)
+End;
 
 
 end.

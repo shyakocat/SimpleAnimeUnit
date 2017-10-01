@@ -22,32 +22,31 @@ Begin
  b.DrawLine(120,50,200,50,PS_DASH,1,RGB(100,0,200));
  b.DrawLine(120,70,200,70,PS_DASHDOT,1,RGB(100,250,100));  //不同样式的线条
 
- b.DrawArc(10,30,40,50,40,30,10,40,RGB(10,255,255),RGB(0,0,0));    //绘制弧线，后面两个参数分别是填充色、轮廓色
- b.DrawChord(10,60,40,80,40,60,10,70,RGB(10,255,255),RGB(0,0,0));  //绘制弦割线
- b.DrawPie(10,90,40,110,40,90,10,100,RGB(10,255,255),RGB(0,0,0));  //绘制饼图
+ b.DrawArc(10,30,40,50,40,30,10,40,RGB(10,255,255),RGB(0,0,0),1);    //绘制弧线，后面两个参数分别是填充色、轮廓色
+ b.DrawChord(10,60,40,80,40,60,10,70,RGB(10,255,255),RGB(0,0,0),1);  //绘制弦割线
+ b.DrawPie(10,90,40,110,40,90,10,100,RGB(10,255,255),RGB(0,0,0),1);  //绘制饼图
 
- b.DrawCircle(100,180,30,RGB(0,250,250),RGB(255,255,255));                    //绘制圆
- b.DrawEllipse(Pt[0].x,Pt[0].y,Pt[1].x,Pt[1].y,RGB(128,128,128),RGB(0,0,0));  //绘制椭圆
- b.DrawRect(Pt[2].x,Pt[2].y,Pt[3].x,Pt[3].y,RGB(90,90,90),RGB(255,0,255));    //绘制矩形
- b.DrawPolygon(@Pt,4,1,RGB(255,255,128),RGB(10,20,30));                       //绘制多边形
- b.DrawBezier(@Pt,4,1,RGB(0,0,0));                                            //绘制贝塞尔曲线
- b.DrawCircle(Pt[0].x,Pt[0].y,8,RGB(0,255,0),RGB(0,0,0));                     //标出贝塞尔曲线的四个锚点
- b.DrawCircle(Pt[1].x,Pt[1].y,8,RGB(0,0,255),RGB(0,0,0));
- b.DrawCircle(Pt[2].x,Pt[2].y,8,RGB(0,0,0),RGB(0,0,0));
- b.DrawCircle(Pt[3].x,Pt[3].y,8,RGB(255,0,0),RGB(0,0,0));
+ b.DrawCircle(100,180,30,RGB(0,250,250),RGB(255,255,255),1);                    //绘制圆
+ b.DrawEllipse(Pt[0].x,Pt[0].y,Pt[1].x,Pt[1].y,RGB(128,128,128),RGB(0,0,0),1);  //绘制椭圆
+ b.DrawRect(Pt[2].x,Pt[2].y,Pt[3].x,Pt[3].y,RGB(90,90,90),RGB(255,0,255),1);    //绘制矩形
+ b.DrawPolygon(@Pt,4,1,RGB(255,255,128),RGB(10,20,30),1);                       //绘制多边形
+ b.DrawBezier(@Pt,4,1,RGB(0,0,0));                                              //绘制贝塞尔曲线
+ b.DrawCircle(Pt[0].x,Pt[0].y,8,RGB(0,255,0),RGB(0,0,0),1);                     //标出贝塞尔曲线的四个锚点
+ b.DrawCircle(Pt[1].x,Pt[1].y,8,RGB(0,0,255),RGB(0,0,0),1);
+ b.DrawCircle(Pt[2].x,Pt[2].y,8,RGB(0,0,0),RGB(0,0,0),1);
+ b.DrawCircle(Pt[3].x,Pt[3].y,8,RGB(255,0,0),RGB(0,0,0),1);
 
 
- b.DrawRect(220,20,280, 60,HS_BDIAGONAL,RGB(255,0,0),RGB(10,10,10));    //绘制不同模式的矩形
- b.DrawRect(220,80,280,120,HS_CROSS    ,RGB(0,255,0),RGB(10,10,10));
- b.DrawRect(290,20,350, 60,HS_DIAGCROSS,RGB(0,0,255),RGB(10,10,10));
- b.DrawRect(290,80,350,120,HS_VERTICAL ,RGB(0,0,0)  ,RGB(10,10,10));
+ b.DrawRect(220,20,280, 60,HS_BDIAGONAL,RGB(255,0,0),RGB(10,10,10),1);    //绘制不同模式的矩形
+ b.DrawRect(220,80,280,120,HS_CROSS    ,RGB(0,255,0),RGB(10,10,10),1);
+ b.DrawRect(290,20,350, 60,HS_DIAGCROSS,RGB(0,0,255),RGB(10,10,10),1);
+ b.DrawRect(290,80,350,120,HS_VERTICAL ,RGB(0,0,0)  ,RGB(10,10,10),1);
 
  b.DrawBmp(180,140,360,240,'SABitmapTest.bmp');    //绘制位图
 
  b.DrawText(20,220,'Program Sample以上',18);       //绘制文字
  c.Create('参上TextGraph？');
  b.DrawText(20,240,c);
-
 
 
  Init('SAK-BitmapGraphTest',b.Width,b.Height);
