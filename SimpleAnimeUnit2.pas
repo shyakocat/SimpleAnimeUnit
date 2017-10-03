@@ -30,6 +30,7 @@ var
 
 
  MACMouseDown:Boolean=False;
+ MACMouseX,MACMouseY:Longint;
 
 //Common Type
 type
@@ -952,6 +953,8 @@ Begin
    button:=GetMouseCode(tmpB.button);
    If tmpB.Press Then MACMouseDown:=True;
    If tmpB.Release Then MACMouseDown:=False;
+   MACMouseX:=x;
+   MACMouseY:=y;
   End
   Else
   Begin
@@ -959,7 +962,9 @@ Begin
    tmpM:=Event as IPTCMouseEvent;
    x:=tmpM.X;
    y:=tmpM.Y;
-   button:=GetMouseCode(tmpM.ButtonState)
+   button:=GetMouseCode(tmpM.ButtonState);
+   MACMouseX:=x;
+   MACMouseY:=y;
   End
  End;
  Exit(True)
@@ -984,6 +989,8 @@ Begin
    button:=GetMouseCode(tmpB.button);
    If tmpB.Press Then MACMouseDown:=True;
    If tmpB.Release Then MACMouseDown:=False;
+   MACMouseX:=x;
+   MACMouseY:=y;
   End
   Else
   Begin
@@ -991,7 +998,9 @@ Begin
    tmpM:=Event as IPTCMouseEvent;
    x:=tmpM.X;
    y:=tmpM.Y;
-   button:=GetMouseCode(tmpM.ButtonState)
+   button:=GetMouseCode(tmpM.ButtonState);
+   MACMouseX:=x;
+   MACMouseY:=y;
   End
  End;
  Exit(True)
@@ -1018,6 +1027,8 @@ Begin
    E.release:=tmpB.release;
    If tmpB.Press Then MACMouseDown:=True;
    If tmpB.Release Then MACMouseDown:=False;
+   MACMouseX:=E.x;
+   MACMouseY:=E.y;
   End
   Else
   Begin
@@ -1027,7 +1038,9 @@ Begin
    E.y:=tmpM.Y;
    E.button:=GetMouseCode(tmpM.ButtonState);
    E.press:=False;
-   E.release:=False
+   E.release:=False;
+   MACMouseX:=E.x;
+   MACMouseY:=E.y;
   End
  End;
  Exit(True)
@@ -1054,6 +1067,8 @@ Begin
    E.release:=tmpB.release;
    If tmpB.Press Then MACMouseDown:=True;
    If tmpB.Release Then MACMouseDown:=False;
+   MACMouseX:=E.x;
+   MACMouseY:=E.y;
   End
   Else
   Begin
@@ -1063,7 +1078,9 @@ Begin
    E.y:=tmpM.Y;
    E.button:=GetMouseCode(tmpM.ButtonState);
    E.press:=False;
-   E.release:=False
+   E.release:=False;
+   MACMouseX:=E.x;
+   MACMouseY:=E.y;
   End
  End;
  Exit(True)
@@ -3309,6 +3326,8 @@ begin
      SAMe.release:=tmpB.Release;
      If tmpB.Press Then MACMouseDown:=True;
      If tmpB.Release Then MACMouseDown:=False;
+     MACMouseX:=tmpB.x;
+     MACMouseY:=tmpB.y;
     End
     Else
     Begin
@@ -3317,7 +3336,9 @@ begin
      SAMe.y:=tmpM.Y;
      SAMe.button:=GetMouseCode(tmpM.ButtonState);
      SAMe.press:=False;
-     SAMe.release:=False
+     SAMe.release:=False;
+     MACMouseX:=tmpM.x;
+     MACMouseY:=tmpM.y;
     End;
     for i:=1 to Member.Size do
      if Member.Items[i]^.Role.Visible then
@@ -3372,6 +3393,8 @@ begin
      SAMe.release:=tmpB.Release;
      If tmpB.Press Then MACMouseDown:=True;
      If tmpB.Release Then MACMouseDown:=False;
+     MACMouseX:=tmpB.x;
+     MACMouseY:=tmpB.y;
     End
     Else
     Begin
@@ -3380,7 +3403,9 @@ begin
      SAMe.y:=tmpM.Y;
      SAMe.button:=GetMouseCode(tmpM.ButtonState);
      SAMe.press:=False;
-     SAMe.release:=False
+     SAMe.release:=False;
+     MACMouseX:=tmpM.x;
+     MACMouseY:=tmpM.y;
     End;
     for i:=1 to Member.Size do
      if Member.Items[i]^.Role.Visible then

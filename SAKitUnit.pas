@@ -5,6 +5,8 @@ uses SimpleAnimeUnit2,Windows,SysUtils;
 
 Type
 
+ IntList=Specialize List<Longint>;
+
  pPureGraph=^PureGraph;
  pGradualGraph=^GradualGraph;
  pMultiGraph=^MultiGraph;
@@ -66,6 +68,7 @@ Type
   Procedure DrawEllipse(x0,y0,x1,y1,_ci,_co,_so:Longint);
   Procedure DrawRect(x0,y0,x1,y1,_ci,_co,_so:Longint);
   Procedure DrawRect(x0,y0,x1,y1,_style,_ci,_co,_so:Longint);
+  Procedure DrawRoundRect(x0,y0,x1,y1,bx,by,_ci,_co,_so:Longint);
   Procedure DrawBmp(x0,y0,x1,y1:Longint;_f:LPCTSTR);
   Procedure DrawArc(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co,_so:Longint);
   Procedure DrawChord(x0,y0,x1,y1,Xstart,Ystart,Xend,Yend,_ci,_co,_so:Longint);
@@ -83,23 +86,31 @@ Const
  SAMouseUp=1;
  SAMouseOver=2;
  SAMouseDown=3;
+//SAMouseFocus=;
+//SAMouseDisable=;
 
 Type
 
  pSAButtonBox=^SAButtonBox;
  pSACheckBox=^SACheckBox;
 
+ SAButtonStatus=Record Gray,Down,Focus,High,Normal:Boolean End;
+
  SAButtonBox=Object(Element)
-  Plain:MultiGraph;
+  Enable:Boolean;
   Caption:TextGraph;
   CustomHandle:AnimeLog;
+  Std:SAButtonStatus;
+  Plain:MultiGraph;
   Constructor Create;
+  Constructor Create(_up,_over,_down:pBaseGraph);
   Constructor Create1(_H,_W:Longint;Const _C:Color);
-  Constructor Create2(_up,_over,_down:pBaseGraph);
+  Constructor Create2(_H,_W:Longint);
   Procedure SetSelect(_SAEtp:ShortInt);
   Procedure SetPic(_SAEtp:ShortInt;Ind:pBaseGraph);
   Procedure SetText(Const T:TextGraph);
   Procedure SetText(Tx:Ansistring);
+  Procedure SetClick(_MP:MouseProc);
   Procedure CountUpdate(_SAEtp:ShortInt);
   Function Reproduce:pElement;Virtual;
  End;
@@ -107,11 +118,18 @@ Type
  SACheckBox=Object(Element)
   Check:Boolean;
   Constructor Create;
+  Constructor Create(_up,_down:pBaseGraph);
   Constructor Create1;
   Constructor Create2;
-  Constructor Create3(_up,_down:pBaseGraph);
   Function Reproduce:pElement;Virtual;
  End;
+
+Var
+ SAButtonStatusInit:SAButtonStatus=(Gray:False;    //Gray=Disable
+                                    Down:False;    //Down=Click
+                                    Focus:False;
+                                    High:False;    //High=Activation(Over)
+                                    Normal:True);
 
 
 implementation
@@ -493,6 +511,24 @@ Begin
  DeleteObject(hPen)
 End;
 
+ Procedure BitmapGraph.DrawRoundRect(x0,y0,x1,y1,bx,by,_ci,_co,_so:Longint);
+Var
+ hBrush,hPen,hOldBrush,hOldPen,Rgn:LongWord;
+Begin
+ hBrush:=CreateSolidBrush(_ci);
+ hOldBrush:=SelectObject(Dc,hBrush);
+ hPen:=CreatePen(PS_SOLID,_so,_Co);
+ hOldPen:=SelectObject(Dc,hPen);
+ Rgn:=CreateRoundRectRgn(x0,y0,x1,y1,bx,by);
+ FillRgn(Dc,Rgn,hBrush);
+ FrameRgn(Dc,Rgn,hPen,_so,_so);
+ SelectObject(Dc,hOldBrush);
+ DeleteObject(hBrush);
+ SelectObject(Dc,hOldPen);
+ DeleteObject(hPen);
+ DeleteObject(Rgn)
+End;
+
 Procedure BitmapGraph.DrawBmp(x0,y0,x1,y1:Longint;_f:LPCTSTR);
 Var
  hBmpPic:HBITMAP;
@@ -602,37 +638,53 @@ End;
 
 Constructor SAButtonBox.Create;
 Begin
+ Enable:=True;
  Plain.Create;
  Role.Create;
  Acts.Create;
  Talk.Create;
  CustomHandle.Create;
+ Std:=SAButtonStatusInit;
 End;
 
- Procedure SAButtonBoxMouseDeal1(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
- Var
-  cEnv:pSAButtonBox;
+ Procedure SAButtonBoxGeneral(Env:pElement;Below:pGraph;Const E:SAMouseEvent;Inner:ShortInt);
  Begin
-  cEnv:=pSAButtonBox(Env);
-  If Inner And 1=0 Then
+  With pSAButtonBox(Env)^ Do
+  With Std Do
+  Begin
+   Gray:=Enable;
+   If (Inner And 1=1)And(E.Press) Then Begin Down:=True; Focus:=True End;
+   If E.Release Then Begin Down:=False; If Inner And 1=0 Then Focus:=False End;
+   High:=Inner And 1=1;
+   //Normal Is Redundant
+  End
+ End;
+
+ Procedure SAButtonBoxMouseDeal1(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+ Begin
+  SAButtonBoxGeneral(Env,Below,E,Inner);
+  With pSAButtonBox(Env)^ Do
+  With Std Do
+  Begin
+   Role.Visible:=Gray;
+   If Down Then
    Begin
-    cEnv^.SetSelect(SAMouseUp);
-    cEnv^.Role.Alpha:=0.85
+    SetSelect(SAMouseDown);
+    Role.Alpha:=1;
+    if (E.Press)And(CustomHandle.Enable) Then
+     If CustomHandle.MouseEvent<>Nil Then
+      CustomHandle.MouseEvent(Env,Below,E,Inner)
+   End Else
+   If High Then
+   Begin
+    SetSelect(SAMouseOver);
+    Role.Alpha:=0.8
+   End Else
+   Begin
+    SetSelect(SAMouseUp);
+    Role.Alpha:=0.6
    End
-  Else
-  If (E.Button=1)And(MACMouseDown) Then
-   Begin
-    cEnv^.SetSelect(SAMouseDown);
-    cEnv^.Role.Alpha:=1;
-    If E.Press Then
-    If cEnv^.CustomHandle.Enable Then
-     cEnv^.CustomHandle.MouseEvent(Env,Below,E,Inner)
-   End
-  Else
-   Begin
-    cEnv^.SetSelect(SAMouseOver);
-    cEnv^.Role.Alpha:=0.9
-   End;
+  End
  End;
 
 Constructor SAButtonBox.Create1(_H,_W:Longint;Const _C:Color);
@@ -640,6 +692,7 @@ Var
  Core:pMultiGraph;
  TmpG:pPureGraph;
 Begin
+ Enable:=True;
  New(TmpG,Create(_H,_W,_C));
  Plain.Create;
  Plain.AddPic(TmpG);
@@ -647,39 +700,41 @@ Begin
  Plain.AddPic(TmpG);
  Plain.SetSelect(SAMouseUp);
  Role.Create(Plain);
- Role.Alpha:=0.85;
+ Role.Alpha:=0.6;
  Acts.Create;
  Talk.Create;
  Caption.Create;
  CustomHandle.Create;
+ Std:=SAButtonStatusInit;
  Talk.MouseEvent:=@SAButtonBoxMouseDeal1
 End;
 
  Procedure SAButtonBoxMouseDeal2(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
- Var
-  cEnv:pSAButtonBox;
  Begin
-  cEnv:=pSAButtonBox(Env);
-  If Inner And 1=0 Then
+  SAButtonBoxGeneral(Env,Below,E,Inner);
+  With pSAButtonBox(Env)^ Do
+  WIth Std Do
+  Begin
+   If Down Then
    Begin
-    cEnv^.SetSelect(SAMouseUp);
+    SetSelect(SAMouseDown);
+    If (E.Press)And(CustomHandle.Enable) Then
+     If CustomHandle.MouseEvent<>Nil Then
+      CustomHandle.MouseEvent(Env,Below,E,Inner)
+   End Else
+   If High Then
+   Begin
+    SetSelect(SAMouseOver)
+   End Else
+   Begin
+    SetSelect(SAMouseUp)
    End
-  Else
-  If (E.Button=1)And(MACMouseDown) Then
-   Begin
-    cEnv^.SetSelect(SAMouseDown);
-    If E.Press Then
-    If cEnv^.CustomHandle.Enable Then
-     cEnv^.CustomHandle.MouseEvent(Env,Below,E,Inner)
-   End
-  Else
-   Begin
-    cEnv^.SetSelect(SAMouseOver);
-   End;
+  End;
  End;
 
-Constructor SAButtonBox.Create2(_up,_over,_down:pBaseGraph);
+Constructor SAButtonBox.Create(_up,_over,_down:pBaseGraph);
 Begin
+ Enable:=True;
  Plain.Create;
  Plain.AddPic(_up);
  Plain.AddPic(_over);
@@ -690,9 +745,181 @@ Begin
  Talk.Create;
  Caption.Create;
  CustomHandle.Create;
+ Std:=SAButtonStatusInit;
  Talk.MouseEvent:=@SAButtonBoxMouseDeal2
 End;
 
+ Procedure SAButtonBoxMouseDeal3(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+ Begin
+  SAButtonBoxGeneral(Env,Below,E,Inner);
+  With pSAButtonBox(Env)^ Do
+  With Std Do
+  Begin
+   If Not Gray Then SetSelect(5) Else
+   If     Down Then SetSelect(3) Else
+   If     High Then SetSelect(2) Else
+   If    Focus Then SetSelect(4) Else
+                    SetSelect(1);
+   If (Inner And 1=1)And(E.Press) Then
+    If CustomHandle.MouseEvent<>Nil Then
+     CustomHandle.MouseEvent(Env,Below,E,Inner)
+  End
+ End;
+
+
+//Picture Sourece : http://bbs.cskin.net/thread-63-1-1.html
+Constructor SAButtonBox.Create2(_H,_W:Longint);
+Var
+ _Ratio:Longint;
+ QBtn_Gray,
+ QBtn_Down,
+ QBtn_Focus,
+ QBtn_High,
+ QBtn_Normal:Graph;
+ Rgn:hRGN;
+ Pen:hPen;
+ Temp:BitmapGraph;
+ QBtn_Cut:IntList;
+
+ Procedure QBtn_Slicing(Var A:BitmapGraph;Const C:IntList);
+ Var n,i:Longint;
+ Begin
+  n:=C.Size;
+  For i:=1 to n Do
+   A.DrawRect(0,Round(_H*(i-1)/n),_W,Round(_H*i/n),C[i],C[i],0);
+ End;
+
+ Procedure QBtn_OutLine(Var A:BitmapGraph;c1,c2:Longint);
+ Begin
+  Rgn:=CreateRoundRectRgn(0,0,_W+1,_H,_ratio,_ratio);
+  Pen:=CreatePen(PS_SOLID,1,c1);
+  FrameRgn(A.Dc,Rgn,Pen,1,1);
+  DeleteObject(Rgn);
+  DeleteObject(Pen);
+  Rgn:=CreateRoundRectRgn(1,1,_W,_H-1,_ratio,_ratio);
+  Pen:=CreatePen(PS_SOLID,1,c2);
+  FrameRgn(A.Dc,Rgn,Pen,1,1);
+  DeleteObject(Rgn);
+  DeleteObject(Pen);
+ End;
+
+ Procedure QBtn_Clean(Var A:Graph;Const B:BitmapGraph);
+ Begin
+  A:=B.ToGraph;
+  A.ChangeNear(1,1,Color_Alpha);
+  A.ChangeNear(1,_W,Color_Alpha);
+  A.ChangeNear(_H,1,Color_Alpha);
+  A.ChangeNear(_H,_W,Color_Alpha)
+ End;
+
+Begin
+
+ _ratio:=Max(5,Round(Max(_W,_H)*0.1));
+ //Gray
+  Temp.Create(_W,_H);
+  QBtn_Cut.Clear;
+  QBtn_Cut.PushBack(RGB(222,222,222));
+  QBtn_Cut.PushBack(RGB(214,214,214));
+  QBtn_Cut.PushBack(RGB(206,206,206));
+  QBtn_Cut.PushBack(RGB(198,198,198));
+  QBtn_Slicing(Temp,QBtn_Cut);
+  QBtn_OutLine(Temp,RGB(123,123,123),RGB(247,247,247));
+  QBtn_Clean(QBtn_Gray,Temp);
+  Temp.Free;
+
+ //Down
+  Temp.Create(_W,_H);
+  QBtn_Cut.Clear;
+  QBtn_Cut.PushBack(RGB(214,222,222));
+  QBtn_Cut.PushBack(RGB(222,222,222));
+  QBtn_Cut.PushBack(RGB(222,231,231));
+  QBtn_Cut.PushBack(RGB(231,231,239));
+  QBtn_Cut.PushBack(RGB(231,239,239));
+  QBtn_Cut.PushBack(RGB(239,239,239));
+  QBtn_Slicing(Temp,QBtn_Cut);
+  QBtn_OutLine(Temp,RGB(165,165,165),RGB(255,255,255));
+  QBtn_Clean(QBtn_Down,Temp);
+  Temp.Free;
+
+  //Focus
+  Temp.Create(_W,_H);
+  QBtn_Cut.Clear;
+  QBtn_Cut.PushBack(RGB(255,255,255));
+  QBtn_Cut.PushBack(RGB(247,255,255));
+  QBtn_Cut.PushBack(RGB(247,247,255));
+  QBtn_Cut.PushBack(RGB(239,247,247));
+  QBtn_Cut.PushBack(RGB(231,239,239));
+  QBtn_Cut.PushBack(RGB(222,239,239));
+  QBtn_Slicing(Temp,QBtn_Cut);
+  QBtn_OutLine(Temp,RGB(74,132,173),RGB(115,214,255));
+  QBtn_Clean(QBtn_Focus,Temp);
+  Temp.Free;
+
+ //High
+  Temp.Create(_W,_H);
+  QBtn_Cut.Clear;
+  QBtn_Cut.PushBack(RGB(206,231,247));
+  QBtn_Cut.PushBack(RGB(198,231,247));
+  QBtn_Cut.PushBack(RGB(189,231,247));
+  QBtn_Cut.PushBack(RGB(181,222,239));
+  QBtn_Cut.PushBack(RGB(173,222,239));
+  QBtn_Cut.PushBack(RGB(165,214,239));
+  QBtn_Cut.PushBack(RGB(156,214,239));
+  QBtn_Slicing(Temp,QBtn_Cut);
+  QBtn_OutLine(Temp,RGB(66,140,189),RGB(231,247,255));
+  QBtn_Clean(QBtn_High,Temp);
+  Temp.Free;
+
+ //Normal
+  Temp.Create(_W,_H);
+  QBtn_Cut.Clear;
+  QBtn_Cut.PushBack(RGB(255,255,255));
+  QBtn_Cut.PushBack(RGB(247,255,255));
+  QBtn_Cut.PushBack(RGB(247,247,255));
+  QBtn_Cut.PushBack(RGB(247,247,247));
+  QBtn_Cut.PushBack(RGB(239,247,247));
+  QBtn_Cut.PushBack(RGB(239,239,247));
+  QBtn_Cut.PushBack(RGB(239,239,239));
+  QBtn_Cut.PushBack(RGB(231,239,239));
+  QBtn_Cut.PushBack(RGB(231,231,239));
+  QBtn_Cut.PushBack(RGB(231,231,231));
+  QBtn_Slicing(Temp,QBtn_Cut);
+  QBtn_OutLine(Temp,RGB(181,181,181),RGB(255,255,255));
+  QBtn_Clean(QBtn_Normal,Temp);
+  Temp.Free;
+
+ Plain.Create;
+ Plain.AddPic(@QBtn_Normal);
+ Plain.AddPic(@QBtn_High);
+ Plain.AddPic(@QBtn_Down);
+ Plain.AddPic(@QBtn_Focus);
+ Plain.AddPic(@QBtn_Gray);
+ QBtn_Normal.Free;
+ QBtn_High.Free;
+ QBtn_Down.Free;
+ QBtn_Focus.Free;
+ QBtn_Gray.Free;
+
+ Role.Create(Plain);
+ Acts.Create;
+ Talk.Create;
+
+ Talk.MouseEvent:=@SAButtonBoxMouseDeal3;
+
+ SetSelect(1);
+
+ CustomHandle.Create;
+ Enable:=True;
+
+ Std:=SAButtonStatusInit
+
+End;
+
+
+Procedure SAButtonBox.SetClick(_MP:MouseProc);
+Begin
+ CustomHandle.MouseEvent:=_MP
+End;
 
 Procedure SAButtonBox.SetSelect(_SAEtp:ShortInt);
 Begin
@@ -708,19 +935,17 @@ Begin
 End;
 
 Procedure SAButtonBox.SetText(Const T:TextGraph);
+Var i:Longint;
 Begin
  Caption:=T.Cut;
- CountUpdate(1);
- CountUpdate(2);
- CountUpdate(3)
+ For i:=1 to Plain.Size Do CountUpdate(i)
 End;
 
 Procedure SAButtonBox.SetText(Tx:Ansistring);
+var i:Longint;
 Begin
  Caption.Create(Tx);
- CountUpdate(1);
- CountUpdate(2);
- CountUpdate(3)
+ For i:=1 to Plain.Size Do CountUpdate(i)
 End;
 
 Procedure SAButtonBox.CountUpdate(_SAEtp:ShortInt);
@@ -772,7 +997,7 @@ Begin
  Check:=False;
  Tmp.Create;
  tBG.Create(12,12);
- tBG.DrawRect(1,1,12,12,RGB(254,254,254),RGB(216,212,204),1);
+ tBG.DrawRect(0,0,12,12,RGB(254,254,254),RGB(216,212,204),1);
  tG:=tBG.ToGraph;
  Tmp.AddPic(@tG);
  tBG.Free;
@@ -801,13 +1026,15 @@ Begin
  Check:=False;
  Tmp.Create;
  tBG.Create(12,12);
- tBG.DrawEllipse(1,1,12,12,RGB(254,254,254),RGB(216,212,204),1);
+ tBG.DrawEllipse(0,0,12,12,RGB(254,254,254),RGB(216,212,204),1);
  tBG.DrawEllipse(3,3,10,10,RGB(254,254,254),RGB(216,212,204),1);
  tG:=tBG.ToGraph;
+ tG.Change(Color_Black,Color_Alpha);
  Tmp.AddPic(@tG);
  tG.Free;
  tBG.DrawEllipse(3,3,10,10,RGB(128,255,0),RGB(216,212,204),1);
  tG:=tBG.ToGraph;
+ tG.Change(Color_Black,Color_Alpha);
  Tmp.AddPic(@tG);
  Tmp.SetSelect(1);
  tG.Free;
@@ -818,7 +1045,7 @@ Begin
  Talk.MouseEvent:=@SACheckBoxMouseDeal1
 End;
 
-Constructor SACheckBox.Create3(_up,_down:pBaseGraph);
+Constructor SACheckBox.Create(_up,_down:pBaseGraph);
 Var
  Tmp:MultiGraph;
 Begin
