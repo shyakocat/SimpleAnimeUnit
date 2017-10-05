@@ -39,7 +39,6 @@ function ShowSelection(const Select:SList;const TimeLimit:int64):longint;forward
 procedure SaveSchedule();forward;
 
 Var
- FreshNece:Boolean;
 
  tmpFile:Text;
  tmpFileStr:Ansistring;
@@ -68,10 +67,10 @@ Begin
 
 End;
 
-function Grad_Disappear(_tp,t:longint):AnimeTag;
+function Grad_Disappear(_tp,t:longint):SimpleAnime;
 begin with Grad_Disappear do begin Create; SetAlpha(-1,_tp); SetTime(t) end end;
 
-function Grad_Appear(_tp,t:longint):AnimeTag;
+function Grad_Appear(_tp,t:longint):SimpleAnime;
 begin with Grad_Appear do begin Create; SetAlpha(1,_tp); SetTime(t) end end;
 
 procedure DisplayMain;
@@ -277,7 +276,7 @@ var
  Girl:array[0..2]of Graph;
  Girl_id:array[0..2]of longint;
  Girl_obj:array[0..2]of AnimeObj;
- Girl_tag:array[0..2]of AnimeTag;
+ Girl_tag:array[0..2]of SimpleAnime;
  Girl_pos:array[0..2]of longint;
 begin
  NowChar:=idx;
@@ -348,7 +347,7 @@ var
  Sclip:Ansistring;
  Split:Specialize List<WideString>;
  tmp:Graph;
- textp:longint;
+ textp,textq:longint;
  _StdTime,_TotTime:Int64;
 
  Event:IPTCEvent;
@@ -437,10 +436,13 @@ begin
    textp:=round(Lim/_TotTime*(DeltaTime-_StdTime));
    textp:=min(textp,Length(Sclip));
 
+   textq:=0;
+   For j:=1 to textp Do textq:=textq Xor Ord(Sclip[textp]>#127);
+
    Dialog.Get(1)^.Free;
    Dialog.Get(1)^.Create(tmp);
    Dialog.Get(1)^.BiasX:=Surface.Height-tmp.Height;
-   pGraph(Dialog.Get(1)^.Source)^.AddText(Copy(Sclip,1,textp),20,Color_White,text_x,text_y);
+   pGraph(Dialog.Get(1)^.Source)^.AddText(Copy(Sclip,1,textp-textq),20,Color_White,text_x,text_y);
 
    Dialog.Communication;
 
@@ -1044,7 +1046,8 @@ end;
 
 
 
-
+var
+ FreshMust:Boolean=True;
 
 
 procedure GameStart;
@@ -1057,6 +1060,8 @@ begin
 
  GameOverFlag:=False;
 
+ FreshMust:=True;
+
  ShowChapter(prelude,0)
 
 end;
@@ -1068,8 +1073,6 @@ begin
 
  LoadSchedule;
 
- FreshNece:=True
-
 end;
 
 procedure GameExit;
@@ -1080,30 +1083,30 @@ end;
 
  procedure SelStart(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
  begin
-  if inner and 2=2 then FreshNece:=True;
+  If Inner And 2<>0 Then FreshMust:=True;
 
-  if inner=3 then Env^.Role.SetAlpha(1) else
-  if inner=2 then Env^.Role.SetAlpha(0.6);
+  if inner and 1=1 then Env^.Role.SetAlpha(1)
+                   else Env^.Role.SetAlpha(0.6);
 
   if (inner and 1=1)and(E.button=1)and(E.press) then GameStart
  end;
 
  procedure SelContinue(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
  begin
-  if inner and 2=2 then FreshNece:=True;
+  If Inner And 2<>0 Then FreshMust:=True;
 
-  if inner=3 then Env^.Role.SetAlpha(1) else
-  if inner=2 then Env^.Role.SetAlpha(0.6);
+  if inner and 1=1 then Env^.Role.SetAlpha(1)
+                   else Env^.Role.SetAlpha(0.6);
 
   if (inner and 1=1)and(E.button=1)and(E.press) then GameContinue
  end;
 
  procedure SelExit(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  begin
-  if inner and 2=2 then FreshNece:=True;
+  If Inner And 2<>0 Then FreshMust:=True;
 
-  if inner=3 then Env^.Role.SetAlpha(1) else
-  if inner=2 then Env^.Role.SetAlpha(0.6);
+  if inner and 1=1 then Env^.Role.SetAlpha(1)
+                   else Env^.Role.SetAlpha(0.6);
 
   if (inner and 1=1)and(E.button=1)and(E.press) then GameExit
  end;
@@ -1116,7 +1119,7 @@ var
  CoBack    ,CoTitle    ,CoStart    ,CoRead    ,CoExit    :Graph;
  CoBack_obj,CoTitle_obj,CoStart_obj,CoRead_obj,CoExit_obj:AnimeObj;
  CoBack_id ,CoTitle_id ,CoStart_id ,CoRead_id ,CoExit_id :longint;
-            CoTitle_tg ,CoSel_tg:AnimeTag;
+            CoTitle_tg ,CoSel_tg                         :SimpleAnime;
                         CoStart_lg ,CoRead_lg ,CoExit_lg :AnimeLog;
 
  backimage,backmusic:Ansistring;
@@ -1207,6 +1210,7 @@ begin
  CoTitle_id:=CommenceText.AddObj(CoTitle_obj);
  CommenceText.AttachAnime(CoTitle_id,CoTitle_tg);
  CommenceText.AttachLogic(CoTitle_id,ExitLog);
+ CommenceText.AnimeAllBegin;
 
  Init('SAGÄ£ÄâÆ÷ by shyakocat    '+GAMENAME,CoBack.Width,CoBack.Height);
  repeat
@@ -1232,6 +1236,7 @@ begin
  CoSel_tg.SetTime(300);
  CoStart_id:=CommenceText.AddObj(CoStart_obj);
  CommenceText.AttachAnime(CoStart_id,CoSel_tg);
+ CommenceText.AnimeBegin(CoStart_id);
 
  repeat
   If Not ConsoleUsing Then Halt;
@@ -1251,6 +1256,7 @@ begin
  CoRead_obj.SetXY(CoBack.Height div 2,CoBack.Width div 3*2+CoBack.Width div 40);
  CoRead_id:=CommenceText.AddObj(CoRead_obj);
  CommenceText.AttachAnime(CoRead_id,CoSel_tg);
+ CommenceText.AnimeBegin(CoRead_id);
 
  repeat
   If Not ConsoleUsing Then Halt;
@@ -1270,6 +1276,7 @@ begin
  CoExit_obj.SetXY(CoBack.Height*3 div 5,CoBack.Width div 3*2+CoBack.Width div 20);
  CoExit_id:=CommenceText.AddObj(CoExit_obj);
  CommenceText.AttachAnime(CoExit_id,CoSel_tg);
+ CommenceText.AnimeBegin(CoExit_id);
 
  repeat
   If Not ConsoleUsing Then Halt;
@@ -1296,18 +1303,21 @@ begin
  SaveInit('image/sv000.jpg');
  NoteInit;
 
+ FreshMust:=True;
  repeat
   If Not ConsoleUsing Then Halt;
-  FreshNece:=False;
   CommenceText.Communication;
-  if FreshNece then
-  begin
+  If FreshMust Then
+  Begin
    Lock;
    ScreenClear;
    Commence.Display;
    CommenceText.DisplayBlend(blend_multiply);
    UnLock
-  end
+  End
+  Else
+   Sleep(FreshLimit);
+  FreshMust:=False;
  until false;
 
 end;

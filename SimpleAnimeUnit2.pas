@@ -158,7 +158,9 @@ const
 type
 
  pBaseGraph=^BaseGraph;
+ pBaseAnime=^BaseAnime;
  pGraph=^Graph;
+ pSimpleAnime=^SimpleAnime;
  pAnimeObj=^AnimeObj;
  pAnimeTag=^AnimeTag;
  pAnimeLog=^AnimeLog;
@@ -274,10 +276,37 @@ type
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
  End;
 
- AnimeTag=packed object
-  Enable:boolean;
-  AnimeType:shortint;
+ BaseAnime=Object
+  AnimeType:ShortInt;
+  StdTime,TotTime:Int64;
+  Constructor Create;
+  Destructor Free;Virtual;Abstract;
+  procedure SetType(_atp:shortint);Virtual;
+  Procedure SetTime(Const _t:Int64);Virtual;
+  procedure Start;Virtual;
+  procedure Start(const _t:Int64);Virtual;
+  Function Process:boolean;Virtual;Abstract;
+  Function Apply(obj:pAnimeObj):Shortint;Virtual;Abstract;
+  Function Reproduce:pBaseAnime;Virtual;Abstract;
+ End;
 
+ AnimeTag=Packed Object
+  Enable:Boolean;
+  Source:pBaseAnime;
+  Constructor Create;
+  Constructor Create(Const a:BaseAnime);
+  Destructor Free;Virtual;
+  Procedure On;Virtual;
+  Procedure Off;Virtual;
+  Function StdTime:int64;
+  Function TotTime:Int64;
+  Function AnimeType:ShortInt;
+  Function Cut:AnimeTag;
+  Function Process:Boolean;
+  Function Apply(obj:pAnimeObj):ShortInt;
+ End;
+
+ SimpleAnime=packed object(BaseAnime)
   Reserve:Longint;
 
   an_BiasX,an_BiasY,
@@ -288,11 +317,8 @@ type
   tp_ClipX1,tp_ClipY1,tp_ClipX2,tp_ClipY2,
   tp_Rotate,tp_Alpha,tp_ScaleX,tp_ScaleY:shortint;
 
-  StdTime,TotTime:Int64;
   Constructor Create;
-  procedure On;
-  procedure Off;
-  procedure SetType(_atp:shortint);
+  Destructor Free;Virtual;
   procedure SetXY(_x,_y:single;_tp:shortint);
   procedure SetClip(_x1,_y1,_x2,_y2:single;_tp:shortint);
   procedure SetRotate(_r:single;_tp:shortint);
@@ -303,10 +329,9 @@ type
   procedure SetRotate(_r:single);
   procedure SetAlpha(_a:single);
   procedure SetScale(_s:single);
-  procedure SetTime(const _t:int64);
-  procedure Start;
-  procedure Start(const _t:Int64);
-  function Process:boolean;
+  function Process:boolean;Virtual;
+  Function Apply(obj:pAnimeObj):Shortint;Virtual;
+  Function Reproduce:pBaseAnime;Virtual;
  end;
 
  AnimeObj=packed object
@@ -329,7 +354,6 @@ type
   procedure SetSource(const src:BaseGraph);
   procedure SetParam(_x,_y:longint;_r,_a,_s:single);
   procedure SetParam(_x,_y,_x1,_y1,_x2,_y2:longint;_r,_a,_s:single);
-  procedure Process(const _at:AnimeTag);
   function Inner(x,y:longint):boolean;
   Function Cut:AnimeObj;
  end;
@@ -381,8 +405,11 @@ type
   function Get(id:longint):pAnimeObj;
   procedure ReplaceObj(id:longint;const _role:AnimeObj);
   procedure DeleteObj(id:longint);
+  Procedure AttachAnime(Id:Longint;Const _act:BaseAnime);
   procedure AttachAnime(id:longint;const _act:AnimeTag);
   procedure AttachLogic(id:longint;const _log:AnimeLog);
+  Procedure AnimeBegin(id:Longint);
+  Procedure AnimeAllBegin;
   procedure StopAnime(id:longint);
   procedure DisplayObj(id:longint;Var Below:Graph);
   procedure DisplayBlendObj(id:longint;tp:shortint;Var Below:Graph);
@@ -1259,134 +1286,29 @@ begin
 end;
 
 constructor Graph.CreateText(const s:ansistring;fontsize:longint;const c:Color);
-var
- w,h,_stride,_offset,textc,backc,x,y,z:longint;
- buf:pointer;
- dc:HDC;
- hbmp:HBITMAP;
- bmi:TBitmapInfo;
- Rt:Rect;
- hBrush:LongWord;
- hFt:HFont;
- p:PRGBTriple;
+Var
+ Tmp:TextGraph;
+ BackC:Color;
 begin
- H:=fontsize;
- W:=fontsize*length(s)div 2+1;
- _stride:=(w*3-1or 3)+1;
- _offset:=_stride-w*3;
- GetMem(buf,h*_Stride);
- dc:=CreateCompatibleDC(0);
- hbmp:=CreateBitmap(w,h,1,32,nil);
- with bmi.bmiHeader do
- begin
-  biSize:=Sizeof(TBitmapInfoHeader);
-  biWidth:=w;
-  biHeight:=h;
-  biPlanes:=1;
-  biBitCount:=24;
-  biCompression:=BI_RGB
- end;
- textc:=RGB(c.r,c.g,c.b);
- backc:=RGB(255,255,255); if textc=backc then dec(backc);
- SetTextColor(dc,textc);
- SetBkColor(dc,backc);
- Rt.Left:=0;
- Rt.Top:=0;
- Rt.Right:=w;
- Rt.Bottom:=h;
- SelectObject(dc,hbmp);
- SelectObject(dc,GetStockObject(NULL_PEN));
- hBrush:=CreateSolidBrush(backc);
- FillRect(dc,Rt,hBrush);
- DeleteObject(hBrush);
- hFt:=CreateFont(fontsize,0,0,0,FW_NORMAL,0,0,0,GB2312_CHARSET,
-                  OUT_DEFAULT_PRECIS,
-                 CLIP_DEFAULT_PRECIS,
-                 DEFAULT_QUALITY,
-                 DEFAULT_PITCH or FF_DONTCARE,
-                 '幼圆');
- SelectObject(dc,hFt);
- DrawText(dc,pchar(s),length(s),Rt,DT_LEFT);
- DeleteObject(hFt);
- GetDIBits(dc,hbmp,0,h,buf,bmi,DIB_RGB_COLORS);
- p:=Buf;
- Create(h,w);
- for x:=h downto 1 do begin
- for y:=1 to w do begin
-  z:=RGB(p^.rgbtRed,p^.rgbtGreen,p^.rgbtBlue);
-  if z=backc then setp(x,y,Color_Alpha)
-             else setp(x,y,RGBA(p^.rgbtRed,p^.rgbtGreen,p^.rgbtBlue,255));
-  inc(p) end;
-  p:=pointer(LongWord(p)+_offset) end;
- FreeMem(buf);
- DeleteObject(hbmp);
- DeleteDC(dc)
+ Tmp.Create(s);
+ Tmp.SetSize(fontsize);
+ Tmp.FontColor:=c;
+ Create(Tmp.Height,Tmp.Width);
+ If c<>Color_Black Then BackC:=Color_Black
+                   Else BackC:=Color_White;
+ Fill(1,1,Height,Width,BackC);
+ Tmp.WriteTo(Self,1,1);
+ Change(BackC,Color_Alpha)
 end;
 
 procedure Graph.AddText(const s:ansistring;fontsize:longint;const c:Color;_x,_y:longint);
-var
- w,h,_stride,_offset,textc,backc,x,y:longint;
- buf:pointer;
- dc:HDC;
- hbmp:HBITMAP;
- bmi:TBitmapInfo;
- Rt:Rect;
- hFt:HFont;
- p:PRGBTriple;
+Var
+ Tmp:TextGraph;
 begin
- if (_x>Height)or(_y>Width) then exit;
- H:=Height;
- W:=Width;
- _stride:=(w*3-1or 3)+1;
- _offset:=_stride-w*3;
- GetMem(buf,h*_Stride);
- p:=buf;
- for x:=h-1 downto 0 do begin
- for y:=0 to w-1 do with Canvas[x*Width+y] do begin
-  p^.rgbtRed:=r;
-  p^.rgbtGreen:=g;
-  p^.rgbtBlue:=b;
-  inc(p) end;
-  p:=pointer(LongWord(p)+_offset) end;
- dc:=CreateCompatibleDC(0);
- hbmp:=CreateBitmap(w,h,1,32,nil);
- SelectObject(dc,hbmp);
- with bmi.bmiHeader do
- begin
-  biSize:=Sizeof(TBitmapInfoHeader);
-  biWidth:=w;
-  biHeight:=h;
-  biPlanes:=1;
-  biBitCount:=24;
-  biCompression:=BI_RGB
- end;
- SetDIBits(dc,hbmp,0,h,buf,bmi,DIB_RGB_COLORS);
- textc:=RGB(c.r,c.g,c.b);
- SetTextColor(dc,textc);
- SetBkMode(dc,TRANSPARENT);
- Rt.Left:=_y;
- Rt.Top:=_x;
- Rt.Right:=w;
- Rt.Bottom:=h;
- hFt:=CreateFont(fontsize,0,0,0,FW_NORMAL,0,0,0,GB2312_CHARSET,
-                  OUT_DEFAULT_PRECIS,
-                 CLIP_DEFAULT_PRECIS,
-                 DEFAULT_QUALITY,
-                 DEFAULT_PITCH or FF_DONTCARE,
-                 '幼圆');
- SelectObject(dc,hFt);
- DrawText(dc,pchar(s),length(s),Rt,DT_LEFT);
- DeleteObject(hFt);
- GetDIBits(dc,hbmp,0,h,buf,bmi,DIB_RGB_COLORS);
- p:=Buf;
- for x:=h downto 1 do begin
- for y:=1 to w do begin
-  setp(x,y,RGBA(p^.rgbtRed,p^.rgbtGreen,p^.rgbtBlue,getp(x,y).A));
-  inc(p) end;
-  p:=pointer(LongWord(p)+_offset) end;
- FreeMem(buf);
- DeleteObject(hbmp);
- DeleteDC(dc)
+ Tmp.Create(s);
+ Tmp.SetSize(fontsize);
+ Tmp.FontColor:=c;
+ Tmp.WriteTo(Self,_x,_y)
 end;
 
 procedure Graph.Load(const path:ansistring);
@@ -2481,12 +2403,13 @@ Var
  oText:Ansistring;
  T,X,Y:Longint;
 Begin
- Vir.Create;
- Acs.Create;
- Vir:=Env^.Acts;
  Acs:=Env^.Role;
- Vir.Process;
- Acs.Process(Vir);
+ If Env^.Acts.Enable Then
+ Begin
+  Vir:=Env^.Acts.Cut;
+  Vir.Process;
+  Vir.Apply(@Acs)
+ End;
  oSize:=FontSize;
  oRotate:=FontAngle;
  oText:=Text;
@@ -2607,22 +2530,6 @@ begin
  SetParam(_x,_y,_r,_a,_s)
 end;
 
-procedure AnimeObj.Process(const _at:AnimeTag);
-begin
- with _at do
- begin
-  BiasX:=BiasX+an_BiasX;
-  BiasY:=BiasY+an_BiasY;
-  ClipX1:=ClipX1+an_ClipX1;
-  ClipX2:=ClipX2+an_ClipX2;
-  ClipY1:=ClipY1+an_ClipY1;
-  ClipY2:=ClipY2+an_ClipY2;
-  Rotate:=Rotate+an_Rotate;
-  Alpha :=Alpha +an_Alpha;
-  ScaleX:=ScaleX+an_ScaleX;
-  ScaleY:=ScaleY+an_ScaleY
- end
-end;
 
 function AnimeObj.Inner(x,y:longint):boolean;
 var
@@ -2655,8 +2562,10 @@ end;
 
 Function AnimeObj.Cut:AnimeObj;
 begin
- Cut:=Self;
- Cut.Source:=Source^.ReProduce
+ Cut.Create;
+ Move(Self,Cut,SizeOf(AnimeObj)-4);
+ If Source=Nil Then Cut.Source:=Nil
+               Else Cut.Source:=Source^.ReProduce
 end;
 
 Destructor AnimeObj.Free;
@@ -2666,12 +2575,111 @@ End;
 
 //Object-AnimeObj-End
 
+//Object-BaseAnime-Begin
+
+Constructor BaseAnime.Create;
+Begin
+ AnimeType:=atp_normal;
+ StdTime:=DeltaTime;
+ TotTime:=1000;
+End;
+
+procedure BaseAnime.SetType(_atp:shortint);
+begin
+ AnimeType:=_Atp
+end;
+
+procedure BaseAnime.SetTime(const _t:int64);
+begin
+ TotTime:=_t
+end;
+
+procedure BaseAnime.Start;
+begin
+ StdTime:=DeltaTime
+end;
+
+procedure BaseAnime.Start(const _t:INt64);
+begin
+ StdTime:=_t
+end;
+
+//Object-BaseAnime-End
+
 //Object-AnimeTag-Begin
 
 Constructor AnimeTag.Create;
-begin
+Begin
  Enable:=False;
- AnimeType:=atp_normal;
+ Source:=Nil
+End;
+
+Constructor AnimeTag.Create(Const a:BaseAnime);
+Begin
+ Enable:=True;
+ Source:=a.Reproduce
+End;
+
+Destructor AnimeTag.Free;
+Begin
+ Source^.Free
+End;
+
+procedure AnimeTag.On;
+begin
+ Enable:=True
+end;
+
+procedure AnimeTag.Off;
+begin
+ Enable:=False
+end;
+
+Function AnimeTag.StdTime:Int64;
+Begin
+ If Source=Nil Then Exit(0);
+ Exit(Source^.StdTime)
+End;
+
+Function AnimeTag.TotTime:Int64;
+Begin
+ If Source=Nil Then Exit(0);
+ Exit(Source^.TotTime)
+End;
+
+Function AnimeTag.AnimeType:ShortInt;
+Begin
+ If Source=Nil Then Exit(0);
+ Exit(Source^.AnimeType)
+End;
+
+FUnction AnimeTag.Process:Boolean;
+Begin
+ If Source=Nil Then Exit(False);
+ Exit(Source^.Process)
+End;
+
+Function AnimeTag.Apply(obj:pAnimeObj):SHortInt;
+Begin
+ If Source=Nil Then Exit(0);
+ Exit(Source^.Apply(obj))
+End;
+
+Function AnimeTag.Cut:AnimeTag;
+Begin
+ Cut.Create;
+ Cut.Enable:=Enable;
+ If Source=Nil Then Cut.Source:=Nil
+               Else Cut.Source:=Source^.Reproduce;
+End;
+
+//Object-AnimeTag-End
+
+//Object-SimpleAnime-Begin
+
+Constructor SimpleAnime.Create;
+begin
+ inherited Create;
 
  an_BiasX:=0;
  an_BiasY:=0;
@@ -2695,26 +2703,14 @@ begin
  tp_ScaleX:=0;
  tp_ScaleY:=0;
 
- StdTime:=DeltaTime;
- TotTime:=1000;
 end;
 
-procedure AnimeTag.On;
-begin
- Enable:=True
-end;
+Destructor SimpleAnime.Free;
+Begin
+End;
 
-procedure AnimeTag.Off;
-begin
- Enable:=False
-end;
 
-procedure AnimeTag.SetType(_atp:shortint);
-begin
- AnimeType:=_Atp
-end;
-
-procedure AnimeTag.SetXY(_x,_y:single;_tp:shortint);
+procedure SimpleAnime.SetXY(_x,_y:single;_tp:shortint);
 begin
  an_BiasX:=_x;
  an_BiasY:=_y;
@@ -2722,7 +2718,7 @@ begin
  tp_BiasY:=_tp
 end;
 
-procedure AnimeTag.SetClip(_x1,_y1,_x2,_y2:single;_tp:shortint);
+procedure SimpleAnime.SetClip(_x1,_y1,_x2,_y2:single;_tp:shortint);
 begin
  an_ClipX1:=_x1;
  an_ClipY1:=_y1;
@@ -2734,19 +2730,19 @@ begin
  tp_ClipY2:=_tp
 end;
 
-procedure AnimeTag.SetRotate(_r:single;_tp:shortint);
+procedure SimpleAnime.SetRotate(_r:single;_tp:shortint);
 begin
  an_Rotate:=_r;
  tp_Rotate:=_tp
 end;
 
-procedure AnimeTag.SetAlpha(_a:single;_tp:shortint);
+procedure SimpleAnime.SetAlpha(_a:single;_tp:shortint);
 begin
  an_Alpha:=_a;
  tp_Alpha:=_tp
 end;
 
-procedure AnimeTag.SetScale(_s:single;_tp:shortint);
+procedure SimpleAnime.SetScale(_s:single;_tp:shortint);
 begin
  an_ScaleX:=_s;
  an_ScaleY:=_s;
@@ -2754,45 +2750,31 @@ begin
  tp_ScaleY:=_tp
 end;
 
-procedure AnimeTag.SetXY(_x,_y:single);
+procedure SimpleAnime.SetXY(_x,_y:single);
 begin
  SetXY(_x,_y,tp_Line)
 end;
 
-procedure AnimeTag.SetClip(_x1,_y1,_x2,_y2:single);
+procedure SimpleAnime.SetClip(_x1,_y1,_x2,_y2:single);
 begin
  SetClip(_x1,_y1,_x2,_y2,tp_Line)
 end;
 
-procedure AnimeTag.SetRotate(_r:single);
+procedure SimpleAnime.SetRotate(_r:single);
 begin
  SetRotate(_r,tp_Line)
 end;
 
-procedure AnimeTag.SetAlpha(_a:single);
+procedure SimpleAnime.SetAlpha(_a:single);
 begin
  SetAlpha(_a,tp_Line)
 end;
 
-procedure AnimeTag.SetScale(_s:single);
+procedure SimpleAnime.SetScale(_s:single);
 begin
  SetScale(_s,tp_Line)
 end;
 
-procedure AnimeTag.SetTime(const _t:int64);
-begin
- TotTime:=_t
-end;
-
-procedure AnimeTag.Start;
-begin
- StdTime:=DeltaTime
-end;
-
-procedure AnimeTag.Start(const _t:INt64);
-begin
- StdTime:=_t
-end;
 
  function tp_Count(const x:real;_tp:shortint):real;
  begin
@@ -2811,7 +2793,7 @@ end;
   end
  end;
 
-function AnimeTag.Process:boolean;
+function SimpleAnime.Process:boolean;
 var
  Tim:Real;
 begin
@@ -2834,7 +2816,34 @@ begin
  an_ScaleY:=an_ScaleY*tp_Count(Tim,tp_ScaleY);
 end;
 
-//Object-AnimeTag-End
+Function SimpleAnime.Apply(obj:pAnimeObj):ShortInt;
+begin
+ If obj<>Nil Then
+ with obj^ do
+ begin
+  BiasX:=BiasX+an_BiasX;
+  BiasY:=BiasY+an_BiasY;
+  ClipX1:=ClipX1+an_ClipX1;
+  ClipX2:=ClipX2+an_ClipX2;
+  ClipY1:=ClipY1+an_ClipY1;
+  ClipY2:=ClipY2+an_ClipY2;
+  Rotate:=Rotate+an_Rotate;
+  Alpha :=Alpha +an_Alpha;
+  ScaleX:=ScaleX+an_ScaleX;
+  ScaleY:=ScaleY+an_ScaleY
+ end;
+ Exit(11) //11=SimpleAnime
+end;
+
+Function SImpleAnime.Reproduce:pBaseAnime;
+Var Tmp:pSimpleAnime;
+Begin
+ New(Tmp);
+ Tmp^:=Self;
+ Exit(Tmp)
+End;
+
+//Object-SimpleAnime-End
 
 //Object-AnimeLog-Begin
 
@@ -2855,12 +2864,13 @@ var
  tmp:SAMouseEvent;
 begin
  if MouseEvent=nil then exit;
- tmpobj:=Env^.Role; tmptag:=Env^.Acts;
- tmptag.Process; tmpobj.Process(tmptag);
- _inner:=ord(tmpobj.inner(y,x)); if _inner<>LastInner then inc(_inner,2);
+ tmpobj:=Env^.Role;
+ If Env^.Acts.Enable Then
+ Begin tmptag:=Env^.Acts.Cut; tmptag.Process; tmptag.Apply(@tmpobj); tmptag.Free End;
+ _inner:=ord(tmpobj.inner(y,x)); if _inner<>LastInner then _inner:=_inner or 2;
  tmp.x:=y; tmp.y:=x; tmp.button:=button; tmp.press:=press; tmp.release:=release;
  MouseEvent(Env,Below,Tmp,_inner);
- LastInner:=_inner and 1
+ LastInner:=_inner and 1;
 end;
 
 procedure AnimeLog.DealKey(Env:pElement;Below:pGraph;key:longint;press,release,alt,shift,ctrl:Boolean);
@@ -3063,6 +3073,21 @@ begin
  Exit(Member.Size)
 end;
 
+Procedure Stage.AnimeBegin(id:Longint);
+Begin
+ With Member.Items[Id]^.Acts Do
+ Begin
+  On;
+  Source^.Start
+ End
+End;
+
+Procedure Stage.AnimeAllBegin;
+Var i:Longint;
+Begin
+ For i:=1 to Member.Size Do AnimeBegin(i)
+End;
+
 function Stage.AnimeEnd(id:longint):boolean;
 begin
  exit(not Member.Items[id]^.Acts.Enable)
@@ -3084,7 +3109,7 @@ begin
  tmpobj:=Member.Items[id]^.Role;
  tmptag:=Member.Items[id]^.Acts;
  tmptag.Process;
- tmpobj.Process(tmptag);
+ tmptag.Apply(@tmpobj);
  IsInner:=tmpobj.inner(x,y);
 end;
 
@@ -3115,17 +3140,23 @@ procedure Stage.AttachAnime(id:longint;const _act:AnimeTag);
 var tag:pAnimeTag;
 begin
  tag:=@Member.Items[id]^.Acts;
- tag^:=_act;
- tag^.On;
- tag^.Start;
+ tag^:=_act.Cut;
 end;
+
+Procedure Stage.AttachAnime(Id:Longint;Const _act:BaseAnime);
+var Tmp:AnimeTag;
+Begin
+ Tmp.Create(_act);
+ AttachAnime(Id,Tmp);
+ Tmp.Free
+End;
 
 procedure Stage.StopAnime(id:longint);
 begin
  with Member.Items[id]^ do
  begin
   Acts.Process;
-  Role.Process(Acts);
+  Acts.Apply(@Role);
   Acts.Off
  end
 end;
@@ -3235,10 +3266,10 @@ begin
   tmp:=Role
  else
   begin
-   Vir:=Acts;
+   Vir:=Acts.Cut;
    AnimeFlag:=Vir.Process;
    Tmp:=Role;
-   Tmp.Process(Vir);
+   Vir.Apply(@Tmp);
    if not AnimeFlag then
    begin
     Acts.Off;
@@ -3263,7 +3294,7 @@ begin
   DrawTmp:=Below.ColorBlend(DrawObj,Round(BiasX)+1,Round(BiasY)+1,tp);
   BlendTo(DrawTmp,Below,0,0); DrawTmp.Free end;
   DrawObj.Free;
- end
+ end;
 end;
 
 procedure Stage.DisplayObj(id:longint;var Below:Graph);

@@ -2,6 +2,7 @@
 uses SimpleAnimeUnit2,SysUtils;
 Var
  b:GroupGraph;
+ a:SimpleAnime;    //简易的动画
  u:AnimeObj;       //AnimeObj属性标记
  v:AnimeTag;       //AnimeTag动画标记
  w:AnimeLog;       //AnimeLog逻辑标记
@@ -36,11 +37,13 @@ Begin
  u.Create(b);        //u是属性，通过一张图片创建
  u.SetXY(100,10);    //设置在窗口中的位置是(X=100,Y=10)
 
- v.Create;                    //v是动画
- v.SetRotate(360,tp_Line);    //以线性旋转360°
- v.SetXY(0,200,tpb_Sin);      //以Sin函数向右平移200个像素
- v.SetType(atp_loop);         //动画循环播放
- v.SetTime(2500);             //完成一次动画用时2.5秒
+ a.Create;                    //SimpleAnime是简易的动画，可以把若干个属性在一段时间内以某种规律变化
+ a.SetRotate(360,tp_Line);    //以线性旋转360°
+ a.SetXY(0,200,tpb_Sin);      //以Sin函数向右平移200个像素
+ a.SetType(atp_loop);         //动画循环播放
+ a.SetTime(2500);             //完成一次动画用时2.5秒
+
+ v.Create(a);                 //v是动画
 
  w.Create;                    //w是逻辑
  w.MouseEvent:=@DealMouse;    //注册函数，当有鼠标事件时调用DealMouse

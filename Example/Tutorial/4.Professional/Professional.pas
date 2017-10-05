@@ -119,7 +119,11 @@ Type
 
 Var
  BackGround:Graph;
+ BkTmp:Graph;
  Field:CustomGraph;
+
+ wWidth,wHeight:Longint;
+
  All:Stage;
  FieldId:Longint;
  FieldLog:AnimeLog;
@@ -137,17 +141,27 @@ Begin
 
  Field.CreateGrid(100,100);
  Field.RandomStatus;
+ wWidth:=Field.Width;
+ wHeight:=Field.Height;
 
- All.AddObj(BackGround);
+ BkTmp:=BackGround.Adapt(wHeight,wWidth);   //BkTmp只是一个临时的图
+                            //注意：有些函数的返回值需要存储下来用过后再Free（释放内存），否则可能造成内存泄漏
+                            //Adapt是Graph内置的函数，返回适应大小后的图
+
+ All.AddObj(BkTmp);
  FieldId:=All.AddObj(Field);
  All.Get(FieldId)^.SetAlpha(0.55);
  FieldLog.Create;
  FieldLog.KeyEvent:=@KeyDeal;
  All.AttachLogic(FieldId,FieldLog);
 
+ BackGround.Free;
+ BkTmp.Free;
+ Field.Free;                //之所以将3张图清空，是因为放入All这个舞台时图片都被复制过了，现在删除它们可以省内存
+
  FreshLimit:=33;                   //FreshLimit表示限制更新的时间（毫秒），33即限帧1000 div 33=30帧
                                    //之所以要限帧是为了防止CPU使用率过高
- Init('LifeGame',Field.Width,Field.Height);
+ Init('LifeGame',wWidth,wHeight);
  Repeat
   Lock;
   All.Communication;
