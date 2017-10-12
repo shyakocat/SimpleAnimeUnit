@@ -7,7 +7,7 @@
 uses MATH,PTC,SimpleAnimeUnit2,SysUtils,Windows,PascalScriptUnit;
 var
  Commence,BackGround,Character,Dialog,Selection,Mask,Saves,Cache:Stage;
- GameName:Ansistring;
+ GameName,Chapter_Name:Ansistring;
  Prelude:Ansistring;
  NowMusicid,NowSoundid:longint;
  ClickText:Boolean;
@@ -27,16 +27,24 @@ var
 
 
 
+Var
+ Color_BELOW:Color;
+
+
 procedure ShowCommence;forward;
 procedure ShowBackGround(const idx:ansistring);forward;
+procedure ShowBackGround(const idx,showtype:ansistring);forward;
 procedure ShowCharacter(const idx:ansistring);forward; //Pos=1~5
+procedure ShowCharacter(const idx,showtype:ansistring);forward;
 procedure ShowPicture(const idx:ansistring;x,y:longint);forward;
 procedure ShowText(const Person:Ansistring;const Say:ansistring);forward;
 procedure ShowChapter(const idx:ansistring;pBorder:Longint);forward;
 procedure ShowMusic(const idx:ansistring);forward;
 procedure ShowSound(const idx:ansistring);forward;
+Procedure ShowTitle(Const title:Ansistring);forward;
 function ShowSelection(const Select:SList;const TimeLimit:int64):longint;forward;
 procedure SaveSchedule();forward;
+
 
 Var
 
@@ -53,6 +61,10 @@ Var
  NoteMasking_pic,NoteLoading_pic:Graph;
 
 
+function Clean(S:Ansistring):Ansistring;Forward;
+Function Split(S:Ansistring):SList;Forward;
+Function Link(Const S:SList;L,R:Longint):Ansistring;Forward;
+
 Procedure ObjectInitial;
 Var i,j:Longint;
 Begin
@@ -65,6 +77,8 @@ Begin
  For i:=1 to 4 do
  For j:=1 to 6 do SaveThumbnail[i,j].Create;
 
+ Color_BELOW:=Color_Black
+
 End;
 
 function Grad_Disappear(_tp,t:longint):SimpleAnime;
@@ -75,7 +89,7 @@ begin with Grad_Appear do begin Create; SetAlpha(1,_tp); SetTime(t) end end;
 
 procedure DisplayMain;
 begin
- ScreenClear;
+ ScreenClear(Color_BELOW);
  BackGround.Display;
  Character.Display;
  Dialog.Display;
@@ -83,13 +97,18 @@ begin
  Mask.Display
 end;
 
- function __AddSelect(const a:VList):Variant;
+ function __AddSelect(const a:VList):PSValue;
  var i:longint;
  begin
   for i:=1 to a.Size do SelectHouse.pushback(a.Items[i])
  end;
 
- function __DoSelect(const a:VList):Variant;
+ function __ClrSelect(Const a:VList):PSValue;
+ Begin
+  SelectHouse.Clear;
+ End;
+
+ function __DoSelect(const a:VList):PSValue;
  var Tim:longint;
  begin
   if a.Size=0 then Tim:=-1 else Tim:=a.Items[1];
@@ -97,32 +116,60 @@ end;
   SelectHouse.Clear
  end;
 
- function __showbackground(const a:VList):Variant;
- begin if a.Size=0 then ShowBackGround('nil')
-                   else ShowBackGround(a.Items[1]) end;
+ function __showselect(Const A:VList):PSValue;
+ Var i:Longint; Temp:SList;
+ Begin
+  Temp.Clear;
+  For i:=1 to a.Size Do Temp.PushBack(a.Items[i]);
+  Run.Assign('result',ShowSelection(Temp,-1));
+  Result:=Run.Get('result');
+  Temp.Clear;
+ End;
 
- function __showcharacter(const a:VList):Variant;
- begin if a.Size=0 then ShowCharacter('')
-                   else ShowCharacter(a.Items[1]) end;
+ function __showbackground(const a:VList):PSValue;
+ begin if a.Size=0 then ShowBackGround('nil') else
+       if a.Size=1 then ShowBackGround(a.Items[1]) else
+                        ShowBackGround(a.Items[1],a.Items[2]) end;
 
- function __showtext(const a:VList):Variant;
+ function __showcharacter(const a:VList):PSValue;
+ begin if a.Size=0 then ShowCharacter('') else
+       if a.Size=1 Then ShowCharacter(a.Items[1]) else
+                        ShowCharacter(a.Items[1],a.Items[2]) end;
+
+ function __showtext(const a:VList):PSValue;
  begin if a.Size=0 then ShowText(NowPerson,'nil') else
        if a.Size=1 then ShowText(NowPerson,a.Items[1])
                    else ShowText(a.Items[1],a.Items[2]) end;
 
- function __showmusic(const a:VList):Variant;
+ function __showmusic(const a:VList):PSValue;
  begin if a.Size=0 then ShowMusic('nil')
                    else ShowMusic(a.Items[1]) end;
 
- function __showsound(const a:VList):Variant;
+ function __showsound(const a:VList):PSValue;
  begin if a.Size=0 then ShowSound('nil')
                    else ShowSound(a.Items[1]) end;
 
- function __showchapter(const a:VList):Variant;
- begin if a.Size=1 then ShowChapter(a.Items[1],0)
-                   else ShowChapter(a.Items[1],a.Items[2]) end;
+ function __showchapter(const a:VList):PSValue;
 
- function __gameover(const a:VList):Variant;
+  Function ChapterSearch(path,findtag:Ansistring):Longint;
+  Var F:Text; Buf:Ansistring; Line:Longint=0;
+  Begin
+   FindTag:=Clean(FindTag);
+   Assign(F,Path); Reset(F);
+   While Not EOF(F) Do
+   Begin ReadLn(F,Buf); Inc(Line);
+         If Clean(Buf)=FindTag Then Begin Close(F); Exit(Line) End End;
+   Close(F); Exit(0)
+  End;
+
+ begin if a.Size=1 then ShowChapter(a.Items[1],0)
+       else if a.Items[2].Tp=PSInt Then ShowChapter(a.Items[1],a.Items[2])
+                                   Else ShowChapter(a.Items[1],ChapterSearch(a.Items[1],a.Items[2])) end;
+
+ function __showtitle(Const a:VList):PSValue;
+ Begin ShowTitle(a.Items[1]) End;
+
+ function __gameover(const a:VList):PSValue;
  begin GameOverFlag:=True end;
 
 procedure PascalScriptInit;
@@ -131,12 +178,15 @@ begin
  Run.UsesSystem;
  Run.Assign('addselect',TFunc(@__AddSelect));
  Run.Assign('doselect',TFunc(@__DoSelect));
+ Run.Assign('clrselect',TFunc(@__ClrSelect));
+ Run.Assign('showselect',TFunc(@__showselect));
  Run.Assign('showbackground',TFunc(@__showbackground));
  Run.Assign('showcharacter',TFunc(@__showcharacter));
  Run.Assign('showtext',TFunc(@__showtext));
  Run.Assign('showmusic',TFunc(@__showmusic));
  Run.Assign('showsound',TFunc(@__showsound));
  Run.Assign('showchapter',TFunc(@__showchapter));
+ Run.Assign('showtitle',TFunc(@__showtitle));
  Run.Assign('gameover',TFunc(@__gameover));
  Run.Assign('result',0);
 end;
@@ -228,12 +278,9 @@ var
  ra:AnimeObj;
 begin
  NowBackGround:=idx;
-
  if idx<>'nil' then
  if not FileExists(idx) then begin MessageBox(0,pchar('背景图片['+idx+']未找到'),'错误：找不到背景图片',mb_ok); halt end;
-
  if Dialog.Size>0 then Dialog.Member.Items[1]^.Role.Visible:=False;
-
  if BackGround.Size<>0 then
  begin
   BackGround.AttachAnime(1,Grad_DisAppear(tp_Sin,700));
@@ -244,9 +291,7 @@ begin
    UnLock
   Until BackGround.AnimeEnd(1)
  end;
-
  if idx='nil' then Exit;
-
  a.Create;
  a.Load(idx);
  ra.Create;
@@ -256,7 +301,6 @@ begin
   BackGround.AddObj(ra)
  else
   BackGround.ReplaceObj(1,ra);
-
  BackGround.AttachAnime(1,Grad_Appear(tp_Sin,700));
  Repeat
   If Not ConsoleUsing Then Halt;
@@ -266,48 +310,103 @@ begin
  Until BackGround.AnimeEnd(1)
 end;
 
+Procedure ShowBackGroundInstant(Const Idx:Ansistring);
+Var
+ a:Graph;
+Begin
+ NowBackGround:=idx;
+ if idx<>'nil' then
+ if not FileExists(idx) then begin MessageBox(0,pchar('背景图片['+idx+']未找到'),'错误：找不到背景图片',mb_ok); halt end;
+ BackGround.Free;
+ If Idx<>'nil' Then Begin
+  a.Create;
+  a.Load(Idx);
+  BackGround.AddObj(A); End;
+ Lock;
+ DisplayMain;
+ UnLock;
+End;
+
+Procedure ShowBackGroundOver(Const Idx:Ansistring);
+Var
+ a:Graph;
+ Tmp:^Stage;
+ i:Longint;
+// b:SimpleAnime;
+Begin
+ NowBackGround:=idx;
+ if idx<>'nil' then
+ if not FileExists(idx) then begin MessageBox(0,pchar('背景图片['+idx+']未找到'),'错误：找不到背景图片',mb_ok); halt end;
+ a.Create;
+ a.Load(Idx);
+ New(Tmp,Create);
+ Tmp^.AddObj(A);
+ For i:=1 to BackGround.Size Do
+  BackGround.AttachAnime(i,Grad_DisAppear(tp_Sqr,500));
+ Repeat
+  If Not ConsoleUsing Then Halt;
+  Lock;
+  ScreenClear(Color_BELOW);
+  Tmp^.Display;
+  BackGround.Display;
+  Character.Display;
+  Dialog.Display;
+  Selection.Display;
+  Mask.Display;
+  UnLock
+ Until BackGround.AnimeAllEnd;
+ BackGround.Free;
+ BackGround:=Tmp^;
+ Lock;
+ DisplayMain;
+ UnLock;
+End;
+
+Procedure ShowBackGround(Const Idx,showtype:Ansistring);
+Begin
+ Case lowercase(showtype) Of
+  'instant':ShowBackGroundInstant(Idx);
+  'over':ShowBackGroundOver(Idx);
+  Else ShowBackGround(Idx);    //Default :  Gradual Fade-Out And Fade-In
+ End
+End;
+
 procedure ShowCharacter(const idx:ansistring); //Pos=1~5
 var
  MemberSize:longint=0;
+ PosFlag:Boolean=True;
  Member:SList;
- i:longint;
- tPath:Ansistring;
-
+ i,j:longint;
+ tPath,tPos,Temp:Ansistring;
  Girl:array[0..2]of Graph;
  Girl_id:array[0..2]of longint;
  Girl_obj:array[0..2]of AnimeObj;
  Girl_tag:array[0..2]of SimpleAnime;
- Girl_pos:array[0..2]of longint;
+ Girl_pos:array[0..2]of Real;
 begin
  NowChar:=idx;
-
- Member.Clear;
- tPath:='';
- i:=1;
- while i<=length(idx)+1 do
- begin
-  if (i>Length(idx))or(idx[i]=' ') then
-  begin
-   if tPath<>'' then
-   begin
-    if not FileExists(tPath) then
-    begin MessageBox(0,pchar('人物图片['+tPath+']未找到'),'错误：找不到人物图片',mb_ok); halt end;
-    if MemberSize=3 then
-    begin MessageBox(0,'加载人物数量超过最大限度3个','错误：加载过多人物',mb_ok); halt end;
-    Member.pushback(tPath);
-    inc(MemberSize);
-    tPath:=''
-   end
-  end
-  else
-   tPath:=tPath+idx[i];
-  inc(i)
+ Member:=Split(Idx);
+ For i:=1 to Member.Size Do
+ Begin
+  tPath:=Member.Items[i];
+  j:=Pos('?',tPath);
+  If j>0 Then Begin tPos:=Copy(tPath,j+1,Length(tPath)); tPath:=Copy(tPath,1,j-1); PosFlag:=False;
+  If Copy(tPos,1,4)<>'pos=' Then ; tPos:=Copy(tPos,5,Length(tPos));
+  Val(tPos,Girl_Pos[i-1]) End;
+  Member.Items[i]:=tPath;
+  if not FileExists(tPath) then
+  begin MessageBox(0,pchar('人物图片['+tPath+']未找到'),'错误：找不到人物图片',mb_ok); halt end;
+  if MemberSize=3 then
+  begin MessageBox(0,'加载人物数量超过最大限度3个','错误：加载过多人物',mb_ok); halt end;
+  Member.pushback(tPath);
+  Inc(MemberSize);
  end;
 
+ If PosFlag Then
  Case MemberSize of
-  1:Girl_Pos[0]:=4;
-  2:begin Girl_Pos[0]:=2; Girl_Pos[1]:=4 end;
-  3:begin Girl_Pos[0]:=1; Girl_Pos[1]:=3; Girl_Pos[2]:=5 end
+  1:Girl_Pos[0]:=0.5;
+  2:begin Girl_Pos[0]:=1/3; Girl_Pos[1]:=2/3 end;
+  3:begin Girl_Pos[0]:=1/6; Girl_Pos[1]:=0.5; Girl_Pos[2]:=5/6 end
  end;
 
  Character.Free;
@@ -317,7 +416,7 @@ begin
   Girl[i].Load(Member.Items[i+1]);
   Girl_obj[i].Create;
   Girl_obj[i].Create(Girl[i]);
-  Girl_obj[i].SetXY(Surface.Height-Girl[i].Height,Surface.Width div 6*Girl_pos[i]-Girl[i].Width div 2+10);
+  Girl_obj[i].SetXY(Surface.Height-Girl[i].Height,Round(Surface.Width*Girl_pos[i]-Girl[i].Width*0.5)+10);
   Girl_obj[i].SetAlpha(0);
   Girl_id[i]:=Character.AddObj(Girl_Obj[i]);
   Girl_tag[i].Create;
@@ -336,6 +435,144 @@ begin
  Until Character.AnimeAllEnd;
 
 end;
+
+Procedure ShowCharacterInstant(Const Idx:Ansistring);
+var
+ MemberSize:longint=0;
+ PosFlag:Boolean=True;
+ Member:SList;
+ i,j:longint;
+ tPath,tPos:Ansistring;
+ Girl:array[0..2]of Graph;
+ Girl_obj:array[0..2]of AnimeObj;
+ Girl_pos:array[0..2]of Real;
+ Tmp:^Stage;
+Begin
+ NowChar:=idx;
+ Member:=Split(Idx);
+ For i:=1 to Member.Size Do
+ Begin
+  tPath:=Member.Items[i];
+  j:=Pos('?',tPath);
+  If j>0 Then Begin tPos:=Copy(tPath,j+1,Length(tPath)); tPath:=Copy(tPath,1,j-1); PosFlag:=False;
+  If Copy(tPos,1,4)<>'pos=' Then ; tPos:=Copy(tPos,5,Length(tPos));
+  Val(tPos,Girl_Pos[i-1]) End;
+  Member.Items[i]:=tPath;
+  if not FileExists(tPath) then
+  begin MessageBox(0,pchar('人物图片['+tPath+']未找到'),'错误：找不到人物图片',mb_ok); halt end;
+  if MemberSize=3 then
+  begin MessageBox(0,'加载人物数量超过最大限度3个','错误：加载过多人物',mb_ok); halt end;
+  Member.pushback(tPath);
+  inc(MemberSize);
+ end;
+
+ If PosFlag Then
+ Case MemberSize of
+  1:Girl_Pos[0]:=0.5;
+  2:begin Girl_Pos[0]:=1/3; Girl_Pos[1]:=2/3 end;
+  3:begin Girl_Pos[0]:=1/6; Girl_Pos[1]:=0.5; Girl_Pos[2]:=5/6 end
+ end;
+
+ Character.Free;
+ for i:=0 to MemberSize-1 do
+ begin
+  Girl[i].Create;
+  Girl[i].Load(Member.Items[i+1]);
+  Girl_obj[i].Create(Girl[i]);
+  Girl_obj[i].SetXY(Surface.Height-Girl[i].Height,Round(Surface.Width*Girl_pos[i]-Girl[i].Width*0.5));
+  Character.AddObj(Girl_Obj[i])
+ end;
+
+ Lock;
+ DisplayMain;
+ UnLock;
+
+End;
+
+Procedure ShowCharacterOver(Const Idx:Ansistring);
+var
+ MemberSize:longint=0;
+ PosFlag:Boolean=True;
+ Member:SList;
+ i,j:longint;
+ tPath,tPos:Ansistring;
+ Girl:array[0..2]of Graph;
+ Girl_obj:array[0..2]of AnimeObj;
+ Girl_pos:array[0..2]of Real;
+ Tmp:^Stage;
+Begin
+ NowChar:=idx;
+ Member:=Split(Idx);
+ For i:=1 to Member.Size Do
+ Begin
+  tPath:=Member.Items[i];
+  j:=Pos('?',tPath);
+  If j>0 Then Begin tPos:=Copy(tPath,j+1,Length(tPath)); tPath:=Copy(tPath,1,j-1); PosFlag:=False;
+  If Copy(tPos,1,4)<>'pos=' Then ; tPos:=Copy(tPos,5,Length(tPos));
+  Val(tPos,Girl_Pos[i-1]) End;
+  Member.Items[i]:=tPath;
+  if not FileExists(tPath) then
+  begin MessageBox(0,pchar('人物图片['+tPath+']未找到'),'错误：找不到人物图片',mb_ok); halt end;
+  if MemberSize=3 then
+  begin MessageBox(0,'加载人物数量超过最大限度3个','错误：加载过多人物',mb_ok); halt end;
+  Member.pushback(tPath);
+  inc(MemberSize);
+ end;
+
+ If PosFlag Then
+ Case MemberSize of
+  1:Girl_Pos[0]:=0.5;
+  2:begin Girl_Pos[0]:=1/3; Girl_Pos[1]:=2/3 end;
+  3:begin Girl_Pos[0]:=1/6; Girl_Pos[1]:=0.5; Girl_Pos[2]:=5/6 end
+ end;
+
+ New(Tmp,Create);
+ for i:=0 to MemberSize-1 do
+ begin
+  Girl[i].Create;
+  Girl[i].Load(Member.Items[i+1]);
+  Girl_obj[i].Create(Girl[i]);
+  Girl_obj[i].SetXY(Surface.Height-Girl[i].Height,Round(Surface.Width*Girl_pos[i]-Girl[i].Width*0.5));
+  Girl_obj[i].SetAlpha(0);
+  Tmp^.AttachAnime(Tmp^.AddObj(Girl_Obj[i]),Grad_Appear(tp_Sqrt,500))
+ end;
+
+ For i:=1 to Character.Size Do
+  Character.AttachAnime(i,Grad_DisAppear(tp_Pow,500));
+
+ Tmp^.AnimeAllBegin;
+ Character.AnimeAllBegin;
+ Repeat
+  If Not ConsoleUsing Then Halt;
+  Lock;
+  ScreenClear(Color_BELOW);
+  BackGround.Display;
+  Tmp^.Display;
+  Character.Display;
+  Dialog.Display;
+  Selection.Display;
+  Mask.Display;
+  UnLock
+ Until Tmp^.AnimeAllEnd And Character.AnimeAllEnd;
+
+ Character.Free;
+ Character:=Tmp^;
+
+ Lock;
+ DisplayMain;
+ UnLock;
+
+End;
+
+
+Procedure ShowCharacter(Const Idx,showtype:Ansistring);
+Begin
+ Case lowercase(showtype) of
+  'instant':ShowCharacterInstant(Idx);
+  'over':ShowCharacterOver(IDx);
+  Else ShowCharacter(Idx)  //Default : Fade-Out And Fade-In
+ End
+End;
 
 procedure ShowPicture(const idx:ansistring;x,y:longint);
 begin
@@ -366,15 +603,15 @@ begin
   UnLock;
 
   Repeat
-   If Not ConsoleUsing Then Halt;
    Console.NextEvent(Event,True,PTCAnyEvent);
+   If Supports(Event,IPTCCloseEvent) Then Halt Else
    if Supports(Event,IPTCMouseEvent)and(PTCMouseButton1 in (Event as IPTCMouseEvent).ButtonState) then break;
-   if Supports(Event,IPTCKeyEvent)and((Event as IPTCKeyEvent).Press) then
+   if Supports(Event,IPTCKeyEvent) then
    begin
     i:=(Event as IPTCKeyEvent).Code;
     if i=27 then halt;
     if (i=10)or(i=32)or(i=90) then break;
-    if i=83 then SaveSchedule
+    if (i=83)and(Event as IPTCKeyEvent).Release then SaveSchedule
    end
   Until False;
 
@@ -503,14 +740,56 @@ end;
   Exit(LowerCase(S))
  end;
 
-procedure ShowChapter(const idx:ansistring;pBorder:Longint);
+ Function Split(S:Ansistring):SList;
+ Var D:Longint;
+ Begin
+  Result.Clear;
+  Repeat
+   S:=Clean(S);
+   D:=Pos(' ',S);
+   If D=0 Then Break;
+   Result.PushBack(Copy(S,1,D-1));
+   Delete(S,1,D)
+  Until False;
+  If S<>'' Then Result.PushBack(S)
+ End;
+
+ Function Link(Const S:SList;L,R:Longint):Ansistring;
+ Var i:Longint;
+ Begin
+  Result:='';
+  If L>R Then Exit;
+  For i:=L to R-1 Do Result:=Result+S.Items[i]+' ';
+  Result:=Result+S.Items[R]
+ End;
+
+
+Procedure SAGSleep(T:Int64);
+Begin
+ GetClose(T,100)
+End;
+
+Function ShowCmd(S:Ansistring):Boolean;
+Begin
+ S:=LowerCase(S);
+ Exit((S='instant')Or
+      (S='over'))
+End;
+
+Procedure ShowTitle(Const Title:Ansistring);
+Begin
+ SetTitle('SAG模拟器 by shyakocat    '+Title)
+End;
+
+Procedure ShowChapter(const idx:ansistring;pBorder:Longint);
 var
  pBias:longint=0;
  F:text;
  S:Ansistring;
- Capture_Name,Talker_Name:ansistring;
+ Talker_Name:ansistring;
  d:longint;
  Scripting:Boolean=False;
+ Ss:SList;
 
  procedure Get(var S:Ansistring);
  var i:longint;
@@ -524,7 +803,6 @@ begin
 
  if not FileExists(idx) then begin MessageBox(0,pchar('脚本['+idx+']未找到'),'错误：找不到章节',mb_ok); halt end;
 
- Capture_Name:='';
  Talker_Name:='';
 
  Assign(F,idx); Reset(F);
@@ -547,16 +825,29 @@ begin
   if pBias<pBorder then continue;
 
   if Scripting then Run.Exec(s) else
-  if (S<>'')and(s[1]<>'`') then
-  if S[1]='#' then Capture_Name:=Copy(S,2,length(S)-1) else
+  If S<>'' Then
+  if S[1]='`' Then Continue Else
+  if S[1]='#' then
+   Begin
+    If Chapter_Name='' Then
+    Begin
+     Chapter_Name:=Copy(S,2,length(S)-1);
+     Run.Assign('Chapter_Name',Chapter_Name)
+    End
+   End else
   if s[1]='&' then
    begin
-    if lowercase(copy(s,2,10))='background' then ShowBackGround(Clean(Copy(S,12,Length(S)))) else
-    if lowercase(copy(s,2,9))='character' then ShowCharacter(Clean(Copy(S,11,Length(S)))) else
-    if lowercase(copy(s,2,5))='music' then ShowMusic(Clean(Copy(S,7,Length(S)))) else
-    if lowercase(copy(s,2,5))='sound' then ShowSound(Clean(Copy(S,7,Length(S)))) else
-    if lowercase(copy(s,2,5))='delay' then Sleep(StrToInt(Clean(Copy(S,7,Length(S))))) else
-    if lowercase(copy(s,2,8))='gameover' then GameOverFlag:=True
+    SS:=Split(S);
+    Case SS.Items[1] Of
+     '&background':If ShowCmd(SS.Items[SS.Size]) Then ShowBackGround(Link(SS,2,SS.Size-1),SS.Items[3])
+                                                 Else ShowBackGround(Link(SS,2,SS.Size));
+     '&character' :If ShowCmd(SS.Items[SS.Size]) Then ShowCharacter(Link(SS,2,SS.SIze-1),SS.Items[SS.Size])
+                                                 Else ShowCharacter(Link(SS,2,SS.Size));
+     '&music':ShowMusic(SS.Items[2]);
+     '&sound':ShowSound(SS.Items[2]);
+     '&delay':SAGSleep(StrToInt(SS.Items[2]));
+     '&gameover':GameOverFlag:=True;
+    End
    end
   else
    begin
@@ -795,10 +1086,10 @@ Var
    Writeln(F,SelectHouse.Items[i]);
   with Run do
   for i:=1 to Size do
-  case vtype.Items[i] of
-      int:writeln(F,vname.node.items[i],':=',v_int.items[vindex.Items[i]]);
-   double:writeln(F,vname.node.items[i],':=',v_double.items[vindex.Items[i]]);
-    psstr:writeln(F,vname.node.items[i],':=',v_psstr.items[vindex.Items[i]])
+  case vData.Items[i].Tp of
+   PSInt   :writeln(F,vname.node.items[i],':=',Longint(vData.Items[i]));
+   PSDouble:writeln(F,vname.node.items[i],':=',Extended(vData.Items[i]));
+   pSStr   :writeln(F,vname.node.items[i],':=''',Ansistring(vData.Items[i]),#39)
   end;
 
   Close(F)
@@ -1048,6 +1339,7 @@ end;
 
 var
  FreshMust:Boolean=True;
+ HaveShow:Boolean=False;
 
 
 procedure GameStart;
@@ -1060,9 +1352,15 @@ begin
 
  GameOverFlag:=False;
 
+ Chapter_Name:='';
+
  FreshMust:=True;
 
- ShowChapter(prelude,0)
+ ShowChapter(prelude,0);
+
+ FreshMust:=True;
+
+ HaveShow:=False
 
 end;
 
@@ -1072,6 +1370,10 @@ begin
  GameOverFlag:=False;
 
  LoadSchedule;
+
+ FreshMust:=True;
+
+ HaveShow:=False;
 
 end;
 
@@ -1083,6 +1385,7 @@ end;
 
  procedure SelStart(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
  begin
+  If Not HaveShow Then Exit;
   If Inner And 2<>0 Then FreshMust:=True;
 
   if inner and 1=1 then Env^.Role.SetAlpha(1)
@@ -1093,6 +1396,7 @@ end;
 
  procedure SelContinue(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
  begin
+  If Not HaveShow Then Exit;
   If Inner And 2<>0 Then FreshMust:=True;
 
   if inner and 1=1 then Env^.Role.SetAlpha(1)
@@ -1103,6 +1407,7 @@ end;
 
  procedure SelExit(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  begin
+  If Not HaveShow Then Exit;
   If Inner And 2<>0 Then FreshMust:=True;
 
   if inner and 1=1 then Env^.Role.SetAlpha(1)
@@ -1176,7 +1481,9 @@ begin
  Until False;
  Close(TmpFile);
 
- if FileExists(backmusic) then ShowMusic(backmusic);
+ NowMusic:='nil';
+ if FileExists(backmusic) then ShowMusic(backmusic)
+ Else backmusic:='nil';
 
  PascalScriptInit;
 
@@ -1313,7 +1620,8 @@ begin
    ScreenClear;
    Commence.Display;
    CommenceText.DisplayBlend(blend_multiply);
-   UnLock
+   UnLock;
+   HaveShow:=True
   End
   Else
    Sleep(FreshLimit);

@@ -1,4 +1,4 @@
-{$M 100000000,0,100000000}
+﻿{$M 100000000,0,100000000}
 {$MODE OBJFPC}{$H+}
 //{$OPTIMIZATION ON,REGVAR,FASTMATH,LOOPUNROLL,CSE,DFA}
 //{$R-,S-,Q-,I-,D-}
@@ -502,6 +502,7 @@ Function TestMouse(Var E:SAMouseEvent):Boolean;
 Function TestKey(Var E:SAKeyEvent):Boolean;
 Function TestKeyPress:Boolean;
 Function GetClose:Boolean;
+Function GetClose(Const LimT,IntT:Int64):Boolean;
 
 Function GetEvent:EList;
 
@@ -510,6 +511,7 @@ procedure ImagesToSAGFormat(const gs:GroupGraph;const path:AnsiString);
 
 procedure Init(const title:string;Width,Height:longint);
 procedure Endit;
+Procedure SetTitle(Const title:String);
 
 implementation
 
@@ -1211,6 +1213,13 @@ Begin
  Exit(False)
 End;
 
+Function GetClose(Const LimT,IntT:Int64):Boolean;
+Var StdTim:Int64;
+Begin
+ StdTim:=DeltaTime;
+ While (ConsoleUsing)And(DeltaTime-StdTim<=LimT) Do Sleep(IntT)
+End;
+
 
 Function GetEvent:EList;
 Begin
@@ -1240,6 +1249,11 @@ begin
  if Assigned(Console) then Console.Close;
  Console:=Nil
 end;
+
+Procedure SetTitle(Const title:String);
+Begin
+ SetWindowText(ConsoleHWND,PChar(Title))
+End;
 
 //Object-BaseGraph-Begin
 
@@ -1312,16 +1326,21 @@ begin
 end;
 
 procedure Graph.Load(const path:ansistring);
+Var
+ HeaderGet:File;
+ Buf:Array[0..15]Of Char;
 begin
  if not FileExists(path) then exit;
- case lowercase(copy(path,length(path)-2,3)) of
-  'bmp':LoadBmp(path);
-  'tga':LoadTGA(path);
-  'png':LoadPNG(path);
-  'jpg':LoadJPG(path);
-  'gif':LoadGIF(path);
-  'sag':LoadSAG(path)
- end
+ AssignFile(HeaderGet,Path);
+ Reset(HeaderGet,1);
+ BlockRead(HeaderGet,Buf,16);
+ Close(HeaderGet);
+ If Copy(Buf,1,2)='BM'                           Then LoadBMP(Path) Else
+ If LowerCase(Copy(Path,Length(Path)-2,3))='tga' Then LoadTGA(Path) Else
+ If Copy(Buf,1,8)=#137#80#78#71#13#10#26#10      Then LoadPNG(Path) Else
+ If Copy(Buf,1,2)=#255#216                       Then LoadJPG(Path) Else
+ If Copy(Buf,1,3)='GIF'                          Then LoadGIF(Path) Else
+ If LowerCase(Copy(Buf,1,10))='`imagedata'       Then LoadSAG(Path);
 end;
 
 procedure Graph.LoadTGA(const path:ansistring);
