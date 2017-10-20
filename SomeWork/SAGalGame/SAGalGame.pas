@@ -61,6 +61,10 @@ Var
  NoteMasking_pic,NoteLoading_pic:Graph;
 
 
+
+ TextSkipSwitch:Boolean=False;
+
+
 function Clean(S:Ansistring):Ansistring;Forward;
 Function Split(S:Ansistring):SList;Forward;
 Function Link(Const S:SList;L,R:Longint):Ansistring;Forward;
@@ -169,6 +173,9 @@ end;
  function __showtitle(Const a:VList):PSValue;
  Begin ShowTitle(a.Items[1]) End;
 
+ function __showskip(Const a:VList):PSValue;
+ Begin TextSkipSwitch:=Not((a.Size>0)And(Longint(a.Items[1])=0)); Exit(Longint(TextSkipSwitch)) End;
+
  function __gameover(const a:VList):PSValue;
  begin GameOverFlag:=True end;
 
@@ -187,6 +194,7 @@ begin
  Run.Assign('showsound',TFunc(@__showsound));
  Run.Assign('showchapter',TFunc(@__showchapter));
  Run.Assign('showtitle',TFunc(@__showtitle));
+ Run.Assign('showskip',TFunc(@__showskip));
  Run.Assign('gameover',TFunc(@__gameover));
  Run.Assign('result',0);
 end;
@@ -206,7 +214,7 @@ end;
 
  procedure text_mouse(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
  begin
-  if (E.button=1)and(E.press) then ClickText:=True
+  if (TextSkipSwitch)Or(E.button=1)and(E.press) then ClickText:=True
  end;
 
  procedure text_key(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
@@ -214,7 +222,8 @@ end;
   if Not E.Release then Exit;
   if E.key=27 then halt;
   if (E.key=10)or(E.key=32)or(E.key=90) then ClickText:=True;
-  if E.key=83 then SaveSchedule
+  if E.key=83 then SaveSchedule;
+  If E.Key=79 Then TextSkipSwitch:=Not TextSkipSwitch
  end;
 
  procedure select_mouse(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
@@ -597,6 +606,8 @@ begin
  if Say='nil' then
  begin
 
+  TextSkipSwitch:=False;
+
   Dialog.Get(1)^.Visible:=False;
   Lock;
   DisplayMain;
@@ -655,7 +666,6 @@ begin
 
  Dialog.Get(1)^.Visible:=True;
 
- _TotTime:=2000;
 
  i:=1;
  while (i<=Split.Size)and(not ClickText) do
@@ -667,6 +677,9 @@ begin
   Sclip:=Split.Items[i];
 
   Repeat
+
+   If TextSkipSwitch Then _TotTime:=100
+                     Else _TotTime:=2000;
 
    If Not ConsoleUsing Then Halt;
 
@@ -723,7 +736,7 @@ begin
   DisplayMain;
   UnLock
 
- Until ClickText;
+ Until (ClickText)Or(TextSkipSwitch);
 
  tmp.Free
 
@@ -900,6 +913,7 @@ var
  i,Option:longint;
  PassTime,RegTime:int64;
 begin
+ TextSkipSwitch:=False;
  stdSelLog.Create;
  stdSelLog.MouseEvent:=@select_mouse;
  tmp.Create;
@@ -1351,6 +1365,7 @@ begin
  Selection.Free;
 
  GameOverFlag:=False;
+ TextSkipSwitch:=False;
 
  Chapter_Name:='';
 
