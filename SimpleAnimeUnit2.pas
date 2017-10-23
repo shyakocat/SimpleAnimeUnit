@@ -1,4 +1,4 @@
-﻿{$M 100000000,0,100000000}
+{$M 100000000,0,100000000}
 {$MODE OBJFPC}{$H+}
 //{$OPTIMIZATION ON,REGVAR,FASTMATH,LOOPUNROLL,CSE,DFA}
 //{$R-,S-,Q-,I-,D-}
@@ -512,6 +512,7 @@ procedure ImagesToSAGFormat(const gs:GroupGraph;const path:AnsiString);
 procedure Init(const title:string;Width,Height:longint);
 procedure Endit;
 Procedure SetTitle(Const title:String);
+Procedure SetPosition(X,Y:Longint);
 
 implementation
 
@@ -1030,9 +1031,10 @@ Begin
    button:=GetMouseCode(tmpM.ButtonState);
    MACMouseX:=x;
    MACMouseY:=y;
-  End
+  End;
+  Exit(True)
  End;
- Exit(True)
+ Exit(False)
 End;
 
 Function GetMouse(Var E:SAMouseEvent):Boolean;
@@ -1110,9 +1112,10 @@ Begin
    E.release:=False;
    MACMouseX:=E.x;
    MACMouseY:=E.y;
-  End
+  End;
+  Exit(True)
  End;
- Exit(True)
+ Exit(False)
 End;
 
 Function GetKey(Var Key:Longint):Boolean;
@@ -1142,9 +1145,10 @@ Begin
  if Supports(Event,IPTCKeyEvent) Then
  Begin
   tmpK:=Event as IPTCKeyEvent;
-  key:=tmpK.Code
+  key:=tmpK.Code;
+  Exit(True)
  End;
- Exit(True)
+ Exit(False)
 End;
 
 Function GetKey(var E:SAKeyEvent):Boolean;
@@ -1184,9 +1188,10 @@ Begin
   E.release:=tmpK.Release;
   E.shift:=TmpK.Shift;
   E.alt:=TmpK.Alt;
-  E.ctrl:=TmpK.Control
+  E.ctrl:=TmpK.Control;
+  Exit(True)
  End;
- Exit(True)
+ Exit(False)
 End;
 
 Function GetKeyPress:Boolean;
@@ -1253,6 +1258,11 @@ end;
 Procedure SetTitle(Const title:String);
 Begin
  SetWindowText(ConsoleHWND,PChar(Title))
+End;
+
+Procedure SetPosition(X,Y:Longint);
+Begin
+ MoveWindow(ConsoleHWND,X,Y,Console.Width,Console.Height,True)
 End;
 
 //Object-BaseGraph-Begin
