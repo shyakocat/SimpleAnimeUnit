@@ -7,7 +7,8 @@ unit SimpleAnimeUnit2;
 interface
 uses math,Windows,Commdlg,SysUtils,Classes,ptc,gl,glu,FPImage,MMSystem,
      FPReadJPEG,FPReadPNG,FPReadBMP,FPReadTGA,FPREADGIF,
-     FPWriteJPEG,FPWritePNG,FPWriteBMP,FPWriteTGA;
+     FPWriteJPEG,FPWritePNG,FPWriteBMP,FPWriteTGA,
+     CommonTypeUnit;
 
 const
  GL_BGRA_EXT=$80e1;
@@ -32,30 +33,10 @@ var
  MACMouseDown:Boolean=False;
  MACMouseX,MACMouseY:Longint;
 
-//Common Type
-type
- generic List<T>=object
-  Size:longint;
-  Items:array of T;
-  procedure swap(var a,b:T);
-  procedure resize(n:longint);
-  procedure clear;
-  procedure pushback(const value:T);
-  procedure pop;
-  procedure insert(p:longint;const value:T);
-  procedure insert(p:longint;const L:List);
-  procedure delete(p,Len:longint);
-  procedure reverse(l,r:longint);
-  procedure fill(l,r:longint;const x:T);
-  function clone(l,r:longint):List;
-  function top:T;
-  function isnil:boolean;
-  function GetValue(i:Longint):T;
-  procedure SetValue(i:Longint;const Value:T);
-  property Arr[i:Longint]:T read GetValue write SetValue;default;
- end;
- SList=specialize List<ansistring>;
+Type
  EList=Specialize List<IPTCEvent>;
+
+
 
 
 //Custom Type
@@ -155,6 +136,10 @@ const
  rev_Horizontal=1;
  rev_Vertical=2;
 
+
+
+
+
 type
 
  pBaseGraph=^BaseGraph;
@@ -228,7 +213,7 @@ type
  end;
 
  GroupGraph=packed object(BaseGraph)
-  Pic:Specialize List<Graph>;
+  Pic:Specialize List<pGraph>;
   Res:Specialize List<Int64>;
   Constructor Create;
   Destructor Free;Virtual;
@@ -399,6 +384,9 @@ type
   function AddObj(const _role:Element):Longint;
   function AddObj(const _role:AnimeObj):longint;
   function AddObj(const _role:BaseGraph):Longint;
+  function LinkObj(const _role:Element):Longint;
+//function LinkObj(const _role:AnimeObj):longint;
+//function LinkObj(const _role:BaseGraph):Longint;
   function AnimeEnd(id:longint):boolean;
   function AnimeAllEnd:boolean;
   function IsInner(id,x,y:longint):boolean;
@@ -461,6 +449,12 @@ var
 const
  sf_Open=True;
  sf_Save=False;
+
+
+
+
+
+
 
 var
  Main:Stage;
@@ -529,105 +523,9 @@ operator =(const a,b:Color)c:Boolean;
 begin exit((a.r=b.r)and(a.g=b.g)and(a.b=b.b)and(a.a=b.a)) end;
 
 
-//GenericObject-List-Begin
 
-function List.isnil:boolean;
- begin
-  exit(Size=0)
- end;
-
- procedure List.clear;
- begin
-  Size:=0;
-  SetLength(Items,0)
- end;
-
- procedure List.resize(n:longint);
- begin
-  Size:=n;
-  if Size<10 Then Begin If high(Items)<9 then setlength(Items,10) End else
-  if Size>=high(Items) then setlength(Items,Size<<1) else
-  if Size<high(Items)>>2 then setlength(Items,Size>>1)
- end;
-
- procedure List.pushback(const value:T);
- begin
-  Resize(size+1);
-  Items[Size]:=value
- end;
-
- procedure List.pop;
- begin
-  if Size>0 then dec(Size);
-  Resize(Size)
- end;
-
- function List.top:T;
- begin
-  exit(Items[size])
- end;
-
- procedure List.swap(var a,b:T);
- var c:T; begin c:=a; a:=b; b:=c end;
-
- procedure List.Reverse(l,r:longint);
- var i:longint;
- begin
-  for i:=l to (l+r)>>1 do swap(Items[i],Items[l+r-i])
- end;
-
- function List.Clone(l,r:longint):List;
- var i:longint;
- begin
-  Clone.Clear;
-  if l>r then exit;
-  for i:=l to r do Clone.pushback(Items[i])
- end;
-
- procedure List.insert(p:longint;const value:T);
- var i:longint;
- begin
-  if p>Size then exit;
-  Resize(Size+1);
-  for i:=Size downto p+1 do Items[i]:=Items[i-1];
-  Items[p]:=value
- end;
-
- procedure List.insert(p:longint;const L:List);
- var i:longint;
- begin
-  if p>Size then exit;
-  Resize(Size+L.Size);
-  for i:=Size downto p+L.Size do Items[i]:=Items[i-L.Size];
-  for i:=1 to L.Size do Items[p-1+i]:=L.Items[i]
- end;
-
- procedure List.delete(p,Len:longint);
- var i:longint;
- begin
-  if p>Size then exit;
-  if p-1+Len>=Size then begin Resize(p-1); exit end;
-  for i:=p+Len to Size do Items[i-Len]:=Items[i];
-  Resize(Size-Len)
- end;
-
- procedure List.fill(l,r:longint;const x:T);
- var i:longint;
- begin
-  for i:=l to r do Items[i]:=x
- end;
-
- function List.GetValue(i:Longint):T;
- begin
-  exit(Items[i])
- end;
-
- procedure List.SetValue(i:Longint;const value:T);
- begin
-  Items[i]:=value
- end;
-
-//GenericObject-List-End
+Operator =(Const a,b:Graph)c:Boolean;
+Begin Exit((a.Width=b.Width)And(a.Height=b.Height)And(a.Canvas=b.Canvas)) End;
 
 //CustomObject-shyGifReader-Begin
 
@@ -1290,7 +1188,7 @@ begin
  Free;
  Width:=_W;
  Height:=_H;
- Canvas:=AllocMem(bits);
+ GetMem(Canvas,bits);
 end;
 
 constructor Graph.Create(const g:TFPMemoryImage);
@@ -2101,8 +1999,10 @@ begin
 end;
 
 procedure GroupGraph.AddPic(const a:Graph;const b:Int64);
+Var Tmp:pGraph;
 begin
- Pic.pushback(a.cut);
+ New(Tmp); Tmp^:=a.Cut;
+ Pic.pushback(Tmp);
  Res.pushback(b);
  if Pic.Size=1 then
  Begin
@@ -2159,13 +2059,16 @@ end;
 procedure GroupGraph.Split(const a:Graph;n,m,sz:Longint);
 var
  i,j,tH,tW:Longint;
+ Tmp:pGraph;
 begin
+ New(Tmp);
  th:=a.Height div n;
  tw:=a.Width  div m;
  for i:=0 to n-1 do
  for j:=0 to m-1 do
  begin
-  Pic.Pushback(a.cut(th*i+1,tw*j+1,th*(i+1),tw*(j+1)));
+  Tmp^:=a.cut(th*i+1,tw*j+1,th*(i+1),tw*(j+1));
+  Pic.Pushback(Tmp);
   Res.Pushback(0);
   if Size=sz then exit
  end
@@ -2175,12 +2078,12 @@ procedure GroupGraph.Operate(const c:Color);
 var i:Longint;
 begin
  with Pic do
-  for i:=1 to Size do Items[i].Change(c,Color_Alpha)
+  for i:=1 to Size do Items[i]^.Change(c,Color_Alpha)
 end;
 
 procedure GroupGraph.Operate;
 begin
- if Size>0 then Operate(Pic.Items[1].Canvas[0])
+ if Size>0 then Operate(Pic.Items[1]^.Canvas[0])
 end;
 
 Destructor GroupGraph.Free;
@@ -2188,7 +2091,7 @@ var i:Longint;
 begin
  Width:=0;
  Height:=0;
- for i:=1 to Pic.Size do Pic.Items[i].Free;
+ for i:=1 to Pic.Size do Pic.Items[i]^.Free;
  Pic.Clear;
  Res.Clear;
 end;
@@ -2210,14 +2113,14 @@ begin
   if Items[M]>=Fall then R:=M
                     else L:=M+1
  end;
- exit(Pic[L].Cut)
+ exit(Pic[L]^.Cut)
 end;
 
 Function GroupGraph.Cut:GroupGraph;
 var i:Longint;
 begin
  Cut.Create;
- For i:=1 to Pic.Size do Cut.AddPic(Pic[i],Res[i]);
+ For i:=1 to Pic.Size do Cut.AddPic(Pic[i]^,Res[i]);
 end;
 
 Function GroupGraph.Reproduce:pBaseGraph;
@@ -2995,12 +2898,16 @@ begin
 end;
 
 procedure DrawTo(const pen:Graph;var goal:Graph;x,y:longint);
-var i,j:longint;
+var i,j,k:longint;
 begin
  With Goal do
- For i:=Max(1,1+x) To Min(Height,pen.Height+x) Do
- For j:=Max(1,1+y) To Min(Width,pen.Width+Y) Do
-  Items[i,j]:=pen[i-x,j-y]
+ For i:=Max(0,x) To Min(Height,pen.Height+x)-1 Do
+ Begin
+  j:=Max(0,y);
+  k:=Min(Width,Pen.Width+Y)-1;
+  If j<=k Then
+   Move(Pen.Canvas[(i-x)*Pen.Width+(j-y)],Canvas[i*Width+j],(k-j+1)<<2);
+ End
 end;
 
 procedure PureBlendColor(var a:Color;const b:Color);
@@ -3013,12 +2920,17 @@ begin
 end;
 
 procedure BlendTo(const pen:Graph;var goal:Graph;x,y:longint);
-var i,j:longint;
+var i,j,k:longint; u,v:pColor;
 begin
  With Goal Do
  For i:=Max(0,x) To Min(Height,pen.Height+X)-1 Do
- For j:=Max(0,y) To Min(Width,pen.Width+Y)-1 Do
-  PureBlendColor(Canvas[i*Width+j],pen[i-x+1,j-y+1])
+ Begin
+  j:=Max(0,y);
+  k:=Min(Width,pen.Width+Y)-1;
+  u:=@Canvas[i*Width+j];
+  v:=@pen.Canvas[(i-x)*pen.Width+(j-y)];
+  For j:=0 to k-j Do PureBlendColor((u+j)^,(v+j)^)
+ End
 end;
 
 
@@ -3099,6 +3011,12 @@ end;
 function Stage.AddObj(const _role:Element):Longint;
 begin
  Member.Pushback(_Role.Reproduce);
+ Exit(Member.Size)
+end;
+
+function Stage.LinkObj(const _role:Element):Longint;
+begin
+ Member.Pushback(@_Role);
  Exit(Member.Size)
 end;
 
@@ -3547,7 +3465,7 @@ begin
  for p:=1 to gs.Size do
  begin
   if s then write(F,'s') else s:=true;
-  g:=gs.Pic.Items[p];
+  g:=gs.Pic.Items[p]^;
   tmp.x:=g.Width;  puts;
   tmp.x:=g.Height; puts;
   for i:=0 to g.Width*g.Height-1 do
