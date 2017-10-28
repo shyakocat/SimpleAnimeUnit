@@ -29,6 +29,8 @@ var
  FPSCount,LastFPS:Longint;
 
 
+ ScrWidth,ScrHeight:Longint;
+
 
  MACMouseDown:Boolean=False;
  MACMouseX,MACMouseY:Longint;
@@ -407,6 +409,9 @@ type
   procedure DisplayBlendObj(id:longint;tp:shortint);
   procedure Display;
   procedure DisplayBlend(tp:shortint);
+  Procedure DisplayDirectObj(id:Longint;Var Below:Graph);
+  Procedure DisplayDirect(Var Below:Graph);
+  Procedure DisplayDirect;
   procedure Communication;
   Procedure Communication(Const L:EList);
   procedure Communication(Below:pGraph);
@@ -2920,16 +2925,17 @@ begin
 end;
 
 procedure BlendTo(const pen:Graph;var goal:Graph;x,y:longint);
-var i,j,k:longint; u,v:pColor;
+var i,j,js,jt:longint; u,v:pColor;
 begin
+ js:=Max(0,y);
+ jt:=Min(Goal.Width,Pen.Width+Y)-1-js;
+ If jt<0 Then Exit;
  With Goal Do
  For i:=Max(0,x) To Min(Height,pen.Height+X)-1 Do
  Begin
-  j:=Max(0,y);
-  k:=Min(Width,pen.Width+Y)-1;
-  u:=@Canvas[i*Width+j];
-  v:=@pen.Canvas[(i-x)*pen.Width+(j-y)];
-  For j:=0 to k-j Do PureBlendColor((u+j)^,(v+j)^)
+  u:=@Canvas[i*Width+js];
+  v:=@pen.Canvas[(i-x)*pen.Width+(js-y)];
+  For j:=0 to jt Do PureBlendColor((u+j)^,(v+j)^)
  End
 end;
 
@@ -3164,6 +3170,7 @@ end;
   i,j,u,v:longint;
   Paper:Graph;
   _hx,_hy,_hx2,_hy2,_sin,_cos,_ru,_rv:real;
+  tmp:pColor;
 
   procedure Max(var a:real;const b:real);
   begin if b>a then a:=b end;
@@ -3173,7 +3180,7 @@ end;
 
  begin
   if abs(r)<1e-5 then exit;
-  Paper.Canvas:=pointer(0);
+  Paper.Canvas:=Nil;
   r:=r*pi/180;
   _sin:=sin(r);
   _cos:=cos(r);
@@ -3187,14 +3194,14 @@ end;
   Rot(-_hy,-_hx); max(_hy2,_ru); max(_hx2,_rv);
   Paper.Create(round(_hx2*2)+1,round(_hy2*2)+1);
   _sin:=-_sin;
-  for i:=0 to Paper.Height-1 do
+  for i:=0 to Paper.Height-1 do Begin Tmp:=@Paper.Canvas[i*Paper.Width];
   for j:=0 to Paper.Width-1 do
   begin
    Rot(j-_hy2,i-_hx2);
-   u:=round(_rv+_hx); if (u<0)or(u>=g.Height) then continue;
-   v:=round(_ru+_hy); if (v<0)or(v>=g.Width) then continue;
-   Paper.Canvas[i*Paper.Width+j]:=g.Canvas[u*g.Width+v]
-  end;
+   u:=round(_rv+_hx); if (u<0)or(u>=g.Height) then Begin (Tmp+J)^:=Color_Alpha; continue End;
+   v:=round(_ru+_hy); if (v<0)or(v>=g.Width) then Begin (Tmp+J)^:=Color_Alpha; continue End;
+   (Tmp+J)^:=g.Canvas[u*g.Width+v]
+  end End;
   g.Free;
   g:=Paper
  end;
@@ -3243,6 +3250,44 @@ begin
   DrawObj.Free;
  end;
 end;
+
+Procedure Stage.DisplayDirectObj(id:Longint;var Below:Graph);
+var
+ tmp:AnimeObj;
+ vir:AnimeTag;
+ AnimeFlag:boolean;
+ DTest:pGraph;
+begin
+ with Member.Items[id]^ do
+ if not Acts.Enable then
+  tmp:=Role
+ else
+  begin
+   Vir:=Acts.Cut;
+   AnimeFlag:=Vir.Process;
+   Tmp:=Role;
+   Vir.Apply(@Tmp);
+   if not AnimeFlag then
+   begin
+    Acts.Off;
+    Role:=Tmp
+   end
+  end;
+ with Tmp do
+ begin
+  DTest:=Source^.Recovery(Member.Items[id],@Below);
+  if DTest=Nil then Exit;
+  DrawTo(DTest^,Below,Round(BiasX),Round(BiasY));
+  DTest^.Free
+ end
+End;
+
+Procedure Stage.DisplayDirect(Var Below:Graph);
+Var i:Longint;
+Begin For i:=1 to Member.Size Do DisplayDirectObj(i,Below) End;
+
+Procedure Stage.DisplayDirect;
+Begin DisplayDirect(Screen) End;
 
 procedure Stage.DisplayObj(id:longint;var Below:Graph);
 begin
@@ -3475,6 +3520,11 @@ begin
 end;
 
 
+Var
+ lpRect:TRect;
 begin
- ProgramStart:=GetTickCount64
+ ProgramStart:=GetTickCount64;
+ GetWindowRect(GetDesktopWindow,lpRect);
+ ScrWidth:=lpRect.Width;
+ ScrHeight:=lpRect.Height;
 end.

@@ -21,11 +21,29 @@ type
   function isnil:boolean;
   function GetValue(i:Longint):T;
   procedure SetValue(i:Longint;const Value:T);
-  function findvalue(Const V:T):Longint;
   property Arr[i:Longint]:T read GetValue write SetValue;default;
-  property Get[Const V:T]:Longint Read FindValue;
  end;
  SList=specialize List<ansistring>;
+
+ Generic Queue<T>=Object
+  Type
+   pQObj=^QObj;
+   QObj=Record Data:T; L,R:pQObj End;
+  Var
+   Size:Longint;
+   Head,Tail,Now:pQObj;
+  Procedure Create;
+  Procedure Clear;
+  Procedure HeadAdd(Const V:T);
+  Procedure TailAdd(Const V:T);
+  Procedure NowLAdd(Const V:T);
+  Procedure NowRAdd(Const V:T);
+  Procedure HeadPop;
+  Procedure TailPop;
+  Procedure NowPop;
+  Function MoveR:Boolean;
+  Function MoveL:Boolean;
+ End;
 
 
 
@@ -129,15 +147,124 @@ function List.isnil:boolean;
   Items[i]:=value
  end;
 
- Function List.FindValue(Const V:T):Longint;
- Var i:Longint;
- Begin
-  For i:=1 to Size Do
-   If Items[i]=V Then Exit(I);
-  Exit(0)
- End;
-
 //GenericObject-List-End
 
+
+ Procedure Queue.Create;
+ Begin
+  Size:=0;
+  Head:=Nil;
+  Tail:=Nil;
+  Now:=Nil;
+ End;
+
+ Procedure Queue.Clear;
+ Var i,CheckMate:pQObj;
+ Begin
+  i:=Head;
+  While i<>Nil Do
+  Begin
+   CheckMate:=i;
+   i:=i^.R;
+   Dispose(CheckMate)
+  End;
+  Size:=0;
+  Head:=Nil;
+  Tail:=Nil;
+  Now:=Nil
+ End;
+
+ Procedure Queue.HeadAdd(Const V:T);
+ Var Tmp:^QObj;
+ Begin
+  Inc(Size);
+  New(Tmp);
+  Tmp^.Data:=V;
+  Tmp^.L:=Nil;
+  Tmp^.R:=Head;
+  If Size=1 Then Begin Head:=Tmp; Tail:=Tmp; Now:=Tmp End
+            Else Begin Head^.L:=Tmp; Head:=Tmp End
+ End;
+
+ Procedure Queue.TailAdd(Const V:T);
+ Var Tmp:^QObj;
+ Begin
+  Inc(Size);
+  New(Tmp);
+  Tmp^.Data:=V;
+  Tmp^.R:=Nil;
+  Tmp^.L:=Tail;
+  If Size=1 Then Begin Head:=Tmp; Tail:=Tmp; Now:=Tmp End
+            Else Begin Tail^.R:=Tmp; Tail:=Tmp End
+ End;
+
+ Procedure Queue.NowLAdd(Const V:T);
+ Var Tmp:^QObj;
+ Begin
+  If Now=Nil Then Exit;
+  Inc(Size);
+  New(Tmp);
+  Tmp^.Data:=V;
+  Tmp^.R:=Now;
+  Tmp^.L:=Now^.L;
+  If Now^.L<>Nil Then Now^.L^.R:=Tmp;
+  Now^.L:=Tmp;
+ End;
+
+ Procedure Queue.NowRAdd(Const V:T);
+ Var Tmp:^QObj;
+ Begin
+  If Now=Nil Then Exit;
+  Inc(Size);
+  New(Tmp);
+  Tmp^.Data:=V;
+  Tmp^.L:=Now;
+  Tmp^.R:=Now^.R;
+  If Now^.R<>Nil Then Now^.R^.L:=Tmp;
+  Now^.R:=Tmp;
+ End;
+
+ Procedure Queue.HeadPop;
+ Begin
+  If Size=0 Then Exit;
+  Dec(Size);
+  If Size=0 Then Begin Dispose(Head); Head:=Nil; Tail:=Nil; Now:=Nil; Exit End;
+  If Now=Head Then Now:=Nil;
+  Head:=Head^.R;
+  Dispose(Head^.L);
+  Head^.L:=Nil
+ End;
+
+ Procedure Queue.TailPop;
+ Begin
+  If Size=0 Then Exit;
+  Dec(Size);
+  If Size=0 Then Begin Dispose(Tail); Head:=Nil; Tail:=Nil; Now:=Nil; Exit End;
+  If Now=Tail Then Now:=Nil;
+  Tail:=Tail^.L;
+  Dispose(Tail^.R);
+  Head^.R:=Nil
+ End;
+
+ Procedure Queue.NowPop;
+ Begin
+  If Now=Nil Then Exit;
+  If Now^.L<>Nil Then Now^.L^.R:=Now^.R;
+  If Now^.R<>Nil Then Now^.R^.L:=Now^.L;
+  Dispose(Now);
+  Now:=Nil
+ End;
+
+ Function Queue.MoveR:Boolean;
+ Begin
+  If (Now=Nil)Or(Now^.R=Nil) then Exit(False);
+  Now:=Now^.R; Exit(True)
+ End;
+
+ Function Queue.MoveL:Boolean;
+ Begin
+  If (Now=Nil)Or(Now^.L=Nil) then Exit(False);
+  Now:=Now^.L; Exit(True)
+ End;
 
 end.

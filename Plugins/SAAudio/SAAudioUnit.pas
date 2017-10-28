@@ -26,6 +26,7 @@ Var
 
 
 Function SAALoadMusic(Const Path:Ansistring):LongWord;
+Function SAALoadMusic(Buf:Pointer;BufLen:Longint):LongWord;
 Function SAARemoveMusic(Chan:LongWord):Boolean;
 
 Function SAAGetMusicLen(Chan:LongWord):Real;
@@ -75,6 +76,21 @@ Begin
  If Chan=0 Then Chan:=BASS_MUSICLOAD(False,Pchar(Path),0,0,BASS_MUSIC_RAMP or BASS_SAMPLE_LOOP or BASS_STREAM_PRESCAN {$IFDEF UNICODE} Or BASS_UNICODE {$ENDIF},1);
  If Chan=0 Then Chan:=BASS_MIDI_STREAMCREATEFILE(False,FName,0,0,BASS_SAMPLE_LOOP,1);
  If Chan<>0 Then Begin TempChan.PushBack(Chan); TempPath.PushBack(FName) ENd;
+ Exit(Chan)
+End;
+
+Function SAALoadMusic(Buf:Pointer;BufLen:Longint):LongWord;
+Var
+ Chan:LongWord;
+Begin
+ Chan:=BASS_STREAMCREATEFILE(True,Buf,0,BufLen,BASS_STREAM_DECODE Or BASS_SAMPLE_LOOP Or BASS_STREAM_PRESCAN);
+ Chan:=BASS_FX_TempoCreate(Chan,BASS_FX_FREESOURCE Or BASS_SAMPLE_LOOP);
+ If Chan=0 Then Chan:=BASS_WMA_STREAMCREATEFILE(True,Buf,0,BufLen,BASS_SAMPLE_LOOP);
+ If Chan=0 Then Chan:=BASS_APE_STREAMCREATEFILE(True,Buf,0,BufLen,BASS_SAMPLE_LOOP);
+ If Chan=0 Then Chan:=BASS_FLAC_STREAMCREATEFILE(True,Buf,0,BufLen,BASS_SAMPLE_LOOP);
+ If Chan=0 Then Chan:=BASS_MUSICLOAD(True,Buf,0,BufLen,BASS_MUSIC_RAMP or BASS_SAMPLE_LOOP or BASS_STREAM_PRESCAN {$IFDEF UNICODE} Or BASS_UNICODE {$ENDIF},1);
+ If Chan=0 Then Chan:=BASS_MIDI_STREAMCREATEFILE(True,Buf,0,BufLen,BASS_SAMPLE_LOOP,1);
+ If Chan<>0 Then Begin TempChan.PushBack(Chan); TempPath.PushBack(nil) ENd;
  Exit(Chan)
 End;
 
@@ -197,8 +213,8 @@ End;
 
 Begin
  If HiWord(BASS_GetVersion)<>BASSVERSION Then //Bass Version Error
-  Halt(2001);
+ ;//  Halt(2001);
  If Not BASS_Init(-1,44100,0,0,nil) Then
-  Halt(2002);
+ ;//  Halt(2002);
  SAAudioTime:=GetTickCount64;
 end.
