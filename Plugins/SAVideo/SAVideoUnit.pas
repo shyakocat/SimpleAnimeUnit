@@ -32,15 +32,19 @@ Type
  ByteArr=Array Of Byte;
  RealArr=Array Of Real;
 
+
+
 Type
+{
  pAudioFrame=^AudioFrame;
  pVideoFrame=^VideoFrame;
  pSubtitleFrame=^SubtitleFrame;
  AudioFrame=Record Frame:pWaveHDR; Time:Real; Next:Pointer; Size:LongWord End;
  VideoFrame=Record Frame:pGraph; Time:Real; Next:Pointer End;
  SubtitleFrame=Record Frame:pavsubtitle; Time:Real; Next,Prev:Pointer End;
+}
 
-
+ pVideoGraph=^VideoGraph;
  VideoGraph=Object(BaseGraph)
   avfmt:pAVFormatContext;
   VInd,AInd,SInd:Specialize List<Longint>;
@@ -48,24 +52,23 @@ Type
   vBase,aBase,sBase:TAVRational;
   vCodecP,aCodecP,sCodecP:pAVCodecContext;
   vCodec ,aCodec ,sCodec:pAVCodec;
-  vFrame,vFrameRGB,aFrame:pAVFrame;
-  sFrame:PAVSubtitle;
+  vFrame,vFrameRGB,aFrame:pAVFrame; sFrame:PAVSubtitle;
   vTime,aTime,sTime:Real;
   vFrameFinish,aFrameFinish,sFrameFinish:Longint;
   vSwsCtx:pSwsContext;
+  aSwrCtx:pSwrContext; aSize,aRet:LongWord;
   vBufLen:Longint;
   vBuf:pByte;
-  pVS,pVN,pVT:pVideoFrame;
-  pAS,pAN,pAT:pAudioFrame;
-  pSS,pSN,pST:pSubtitleFrame;
   hAOut:hWAVEOUT;
   fmt:TWAVEFormatEx;
-  TimeBegin,TimeEnd,TimePREV,TimeSUCC:Real;
-  BoolPlayVideo,BoolPlayMusic,BoolSkip:Boolean;
+  TimeBegin,TimeEnd,TimeLast,TimeLastM:Real;
+  BoolPlayVideo,BoolPlayMusic,BoolSkip,BoolRestA:Boolean;
   packet:TAVPacket;
 
 
-  Exchange,Cache:Graph;
+  vExchange:Graph;
+  aExchange:pWaveHDR;
+  aStream:Specialize Queue<pWaveHDR>;
 
   Constructor Create;
   Destructor Free;
@@ -73,47 +76,9 @@ Type
   Procedure Resize(_W,_H:Longint);
   Procedure Decode(Const TimeFall:Real);
   Procedure Skip(Const TimeFall:Real);
+  Procedure Pause(_vt:Boolean);
+  Procedure Volume(Const _av:Real);
 
-
-{
-  Function NewVideo(_w,_h:Longint):pVideoFrame;
-  Function CrtVideo(_w,_h:Longint):pVideoFrame;
-  Procedure DelVideo(pV:pVideoFrame);
-  Procedure DelVideoAll;
-  Procedure FreeVideo(pV:pVideoFrame);
-  Procedure FreeVideoAll;
-  Function NewAudio(_s:LongWord):pAudioFrame;
-  Function CrtAudio(_s:LongWord):pAudioFrame;
-  Procedure DelAudio(pA:pAudioFrame);
-  Procedure DelAudioAll;
-  Procedure FreeAudio(pA:pAudioFrame);
-  Procedure FreeAudioAll;
-  Function NewSubtitle(pSb:pAVSUBTITLE):pSubtitleFrame;
-  Procedure FreeSubtitle(pS:pSubtitleFrame);
-  Procedure FreeSubtitleAll;
-  Function LenToSec(Len:LongWord):Real;
-  Function SecToLen(Sec:Real):LongWord;
-  Procedure PauseAudio(p:Boolean);
-  Function GetAudioTimS:LongWord;
-  Function GetAudioPosS:LongWord;
-  Function GetAudioTim:Real;
-  Function GetAudioPos:Real;
-  Function GetVideoLen:Real;
-  Function GetVideoPos:Real;
-  Function GetAudioVolS:Word;
-  Function GetAudioVol:Real;
-  Procedure SetVideoPos(_p:Real);
-  Procedure SetAudioVolS(_v:Word);
-  Procedure SetAudioVol(_v:Real);
-  Procedure PlayAudioProc(h:HWAVEOUT;msg,inst,wp,lp:LongWord);StdCall;
-  Procedure PlayAudioThread;StdCall;
-  Procedure OutAudio;
-  Procedure GetAudioData(Var Wave:byteArr;_P,_S:LongWord);
-  Procedure DrawSubtitleAV(avsb:pAVSubtitle);
-  Procedure DrawSubtitle;
-  Procedure DrawVideoAV(pV:pVideoFrame);
-  Procedure DrawVideo;
-}
 
   Function Reproduce:pBaseGraph;Virtual;
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
@@ -122,15 +87,49 @@ Type
 implementation
 
 
+ Function PlayAudioThread(pVideoObj:pVideoGraph):DWord;StdCall;
+ Begin
+  With pVideoObj^ Do Begin
+   BoolPlayMusic:=True;
+   While BoolPlayMusic Do
+   Begin
+    While (BoolPlayMusic)And(aStream.Size<>0) Do
+    Begin
+     If BoolRestA Then
+     Begin
+      WaveOutReset(hAOut);
+      If BoolPlayVideo Then WaveOutPause(hAOut)
+                       Else WaveOutRestart(hAOut);
+      BoolRestA:=False;
+     End;
+     Sleep(1)
+    End;
+    If BoolPlayMusic Then
+    Begin
+     If aStream.Head<>Nil Then
+     With aStream.Head^ Do
+     Begin
+      If Data^.dwFlags and WHDR_PREPARED>0 Then
+       WaveOutUnPrepareHeader(hAOut,Data,SizeOf(WaveHdr));
+      WaveOutPrepareHeader(hAOut,Data,SizeOf(WaveHdr));
+      WaveOutWrite(hAOut,Data,SizeOf(WaveHdr));
+      FreeMemory(Data)
+     End;
+     aStream.HeadPop
+    End
+   End
+  End
+ End;
 
  Constructor VideoGraph.Create;
  Begin
   Width:=0;
   Height:=0;
-  Exchange.Create;
-  Cache.Create;
-  TimePREV:=-1;
-  TimeSUCC:=-1;
+  vExchange.Create;
+  aExchange:=Nil;
+  aStream.Create;
+  TimeLast:=-1;
+  TimeLastM:=-1;
   av_register_all;
  End;
 
@@ -165,26 +164,55 @@ implementation
  End;
 
  Procedure VideoGraph.Decode(Const TimeFall:Real);
+ Var
+  CatchMusic,CatchVideo:Boolean;
  Begin
-  If (TimeFall<0)Or(TimeFall>TimeEnd) Then Begin Exchange.Free; Exit End;
-  If (TimePREV<=TimeFall)And(TimeFall<=TimeSUCC) Then Exit;
-  If (TimeFall<TimePREV)Or(TimeSUCC+1<TimeFall) Then Begin
-   av_seek_frame(avfmt,VInd.Size-1,Trunc(TimeFall/av_q2d(vBase)),AVSEEK_FLAG_BACKWARD);
-   TimePREV:=-1; Exchange.Free;
-   TimeSUCC:=-1;
+  If Not BoolPlayVideo Then Exit;
+  If (TimeFall<0)Or(TimeFall>TimeEnd) Then Begin vExchange.Free; FreeMemory(aExchange); Exit End;
+  If (TimeLast>=TimeFall)And(Not BoolSkip) Then Exit;
+  If (TimeLast>TimeFall)Or(TimeFall>TimeLast+1) Then Begin
+   If VInd.Size>0 Then av_seek_frame(avfmt,VInd[1],Trunc(TimeFall/av_q2d(vBase)),AVSEEK_FLAG_BACKWARD)
+                  Else av_seek_frame(avfmt,AInd[1],Trunc(TimeFall/av_q2d(aBase)),AVSEEK_FLAG_BACKWARD);
+   While aStream.Size>0 Do Begin FreeMemory(aStream.Head^.Data); aStream.HeadPop End
   End;
+  CatchMusic:=(Not BoolPlayMusic)Or(TimeLastM>=TimeFall);
+  CatchVideo:=False;
   Repeat
    If av_read_frame(avfmt,@packet)>=0 Then
    Begin
     If packet.stream_index=AInd.top Then
     Begin
-
+     If BoolPlayMusic Then
+     Begin
+      aTime:=packet.dts*av_q2d(aBase);
+      avcodec_decode_audio4(aCodecP,aFrame,@aframefinish,@packet);
+      If aFrameFinish>0 Then
+      If (aTime>=TimeFall)And(BoolSkip)Or(Not BoolSkip) Then
+      Begin
+       aSwrCtx:=swr_alloc_set_opts(nil,av_get_default_channel_layout(fmt.nChannels),AV_SAMPLE_FMT_S16,fmt.nSamplesPerSec,
+                                       av_get_default_channel_layout(aFrame^.Channels),TAVSampleFormat(aFrame^.format),aFrame^.sample_rate,0,nil);
+       swr_init(aSwrCtx);
+       aSize:=aFrame^.nb_samples*av_get_bytes_per_sample(AV_SAMPLE_FMT_S16)*2;
+       While BoolRestA Do Sleep(1);
+       aExchange:=AllocMem(SizeOf(WAVEHDR)+aSize);
+       aExchange^.dwBufferLength:=aSize;
+       aExchange^.lpData:=PCHAR(aExchange)+SizeOf(WAVEHDR);
+       aRet:=swr_convert(aSwrCtx,@aExchange^.lpData,aSize,aFrame^.Data,aFrame^.nb_samples);
+       aSize:=aRet*av_get_bytes_per_sample(AV_SAMPLE_FMT_S16)*2;
+       aExchange^.dwBufferLength:=aSize;
+       swr_free(@aSwrCtx);
+       aStream.TailAdd(aExchange);
+       TimeLastM:=aTime;
+       CatchMusic:=aTime>=TimeFall;
+      End
+     End
     End Else
     If packet.stream_index=VInd.top Then
     Begin
      vTime:=packet.dts*av_q2d(vBase);
      avcodec_decode_Video2(vCodecP,vFrame,@vframefinish,@packet);
      If vFrameFinish>0 Then
+     If vTime>=TimeFall Then
      Begin
       vSwsCtx:=sws_getcontext(vFrame^.Width,
                               vFrame^.Height,
@@ -200,16 +228,11 @@ implementation
                 vFrameRGB^.data,
                 vFrameRGB^.linesize);
       sws_FreeContext(vSwsCtx);
-      If TimeSUCC=-1 Then
-       If vTime>TimeFall Then Exit
-       Else Begin TimeSUCC:=vTime; Cache.Width:=Width; Cache.Height:=Height; Cache.Canvas:=PCOLOR(vFrameRGB^.Data[0]) End
-      Else
-       Begin
-        TimePREV:=TimeSUCC; TimeSUCC:=vTime;
-        If (TimePREV<>-1)And(TimeSUCC>TimeFall) Then Begin
-         FreeMemory(Exchange.Canvas); Exchange:=Cache.Cut; Exit End;
-        Cache.Canvas:=PCOLOR(vFrameRGB^.Data[0])
-       End
+      vExchange.Width:=Width;
+      vExchange.Height:=Height;
+      vExchange.Canvas:=PCOLOR(vFrameRGB^.Data[0]);
+      TimeLast:=vTime;
+      CatchVideo:=True;
      End
     End Else
     If packet.stream_index=SInd.top Then
@@ -217,13 +240,28 @@ implementation
     End;
    End
    Else Break;
-   av_free_packet(@packet)
+   av_free_packet(@packet);
+   If CatchMusic And CatchVideo Then Begin BoolSkip:=False; Exit End
   Until False
+ End;
+
+ Procedure VideoGraph.Volume(Const _av:Real);
+ Var tmp:LongWord;
+ Begin
+  tmp:=Round(Min(Max(0,_av),1)*$ffff);
+  tmp:=tmp<<16Or tmp;
+  WaveOutSetVolume(hAOut,tmp)
+ End;
+
+ Procedure VideoGraph.Pause(_vt:Boolean);
+ Begin
+  BoolPlayVideo:=_vt
  End;
 
  Procedure VideoGraph.Skip(Const TimeFall:Real);
  Begin
   BoolSkip:=True;
+  BoolRestA:=True;
   TimeBegin:=Trunc(DeltaTime-TimeFall*1000);
  End;
 
@@ -235,413 +273,17 @@ implementation
   Begin
    TimeNow:=(DeltaTime-TimeBegin)/1000;
    Decode(TimeNow);
-   If Exchange.Width=0 Then Begin
+   If vExchange.Width=0 Then Begin
     New(Result,Create(Height,Width));
     Result^.Fill(1,1,Height,Width,Color_Black);
     Exit
    End;
    New(Result);
-   Result^:=Exchange.Cut
-  End
- End;
-
-{
- Function VideoGraph.CrtVideo(_w,_h:Longint):pVideoFrame;
- Begin
-  New(Result);
-  With Result^ Do
-  Begin
-   New(Frame,Create(_h,_w));
-   Time:=0;
-   Next:=Nil
-  End
- End;
-
- Function VideoGraph.NewVideo(_w,_h:Longint):pVideoFrame;
- Begin
-  If (PVS^.Next<>Nil)And(PVS^.Frame^.Width=_w)And(PVS^.Frame^.Height=_h) Then
-  Begin
-   Result:=pVS;
-   pVS:=pVS^.Next;
-   Result^.Time:=0;
-   Result^.Next:=Nil
-  End
-  Else Exit(CrtVideo(_w,_h))
- End;
-
- Procedure VideoGraph.DelVideo(pV:pVideoFrame);
- Begin
-  pV^.Time:=0;
-  pV^.Next:=pVS;
-  pVS:=pV
- End;
-
- Procedure VideoGraph.DelVideoAll;
- Begin
-  While pVN^.Next<>Nil Do
-  Begin
-   pVT:=pVN;
-   pVN:=pVN^.Next;
-   DelVideo(pVT)
-  End
- End;
-
- Procedure VideoGraph.FreeVideo(pV:pVideoFrame);
- Begin
-  pV^.Frame^.Free;
-  FreeMem(pV)
- End;
-
- Procedure VideoGraph.FreeVideoAll;
- Begin
-  DelVideoAll;
-  While pVS^.Next<>Nil Do
-  Begin
-   pVT:=pVS;
-   pVS:=pVS^.Next;
-   FreeVideo(pVT)
+   Result^:=vExchange.Cut
   End
  End;
 
 
- Function VideoGraph.CrtAudio(_s:LongWord):pAudioFrame;
- Begin
-  New(Result);
-  With Result^ Do
-  Begin
-   Frame:=ALLOCMEM(_s+SizeOf(WAVEHDR));
-   Frame^.dwBufferLength:=_S;
-   Frame^.lpData:=PChar(Frame)+SizeOf(WAVEHDR);
-   Time:=0;
-   Next:=Nil;
-   Size:=_S
-  End
- End;
-
- Function VideoGraph.NewAudio(_s:LongWord):pAudioFrame;
- Begin
-  If (pAS^.Next<>Nil)And(pAS^.Size>=_S) Then
-  Begin
-   Result:=pAS;
-   pAS:=pAS^.Next;
-   Result^.Time:=0;
-   Result^.Next:=Nil
-  End
-  Else Exit(CrtAudio(_s))
- End;
-
- Procedure VideoGraph.DelAudio(pA:pAudioFrame);
- Begin
-  pA^.Time:=0;
-  pA^.Next:=pVS;
-  pAS:=pA
- End;
-
- Procedure VideoGraph.DelAudioAll;
- Begin
-  While pAN^.Next<>Nil Do
-  Begin
-   pAT:=pAN;
-   pAN:=pAN^.Next;
-   DelAudio(pAT)
-  End
- End;
-
- Procedure VideoGraph.FreeAudio(pA:pAudioFrame);
- Begin
-  FreeMem(pA^.Frame);
-  FreeMem(pA)
- End;
-
- Procedure VideoGraph.FreeAudioAll;
- Begin
-  DelAudioAll;
-  While pAS^.Next<>Nil Do
-  Begin
-   pAT:=pAS;
-   pAS:=pAS^.Next;
-   FreeAudio(pAT)
-  End
- End;
-
- Function VideoGraph.NewSubtitle(pSb:pAVSubTitle):pSubtitleFrame;
- Begin
-  Result:=ALLOCMEM(SizeOf(SubtitleFrame));
-  Result^.Frame:=ALLOCMEM(SizeOf(TAVSUBTITLE));
-  Move(pSb^,Result^.Frame^,SizeOf(TAVSUBTITLE))
- End;
-
- Procedure VideoGraph.FreeSubtitle(pS:pSubtitleFrame);
- Begin
-  FreeMem(pS^.Frame);
-  FreeMem(pS)
- End;
-
- Procedure VideoGraph.FreeSubtitleAll;
- Begin
-  While pSS<>Nil Do
-  Begin
-   pST:=pSS^.Next;
-   FreeSubtitle(PSS);
-   pSS:=pST
-  End
- End;
-
- Function VideoGraph.LenToSec(Len:LongWord):Real;
- Begin
-  Result:=Len/Fmt.nSamplesPerSec
- End;
-
- Function VideoGraph.SecToLen(Sec:Real):LongWord;
- Begin
-  Result:=Trunc(Sec*fmt.nSamplesPerSec)
- End;
-
-
- Procedure VideoGraph.PauseAudio(p:Boolean);
- Begin
-  If P Then WaveOutPause(hAOut)
-       Else WaveOutRestart(hAOut)
- End;
-
- Function VideoGraph.GetAudioTimS:LongWord;
- Var Tim:MMTime;
- Begin
-  WaveOutGetPosition(hAOut,@Tim,SizeOf(Tim));
-  Result:=Tim.Ms
- End;
-
- Function VideoGraph.GetAudioPosS:LongWord;
- Begin
-  Result:=GetAudioTimS Div fmt.nBlockAlign
- End;
-
- Function VideoGraph.GetAudioTim:Real;
- Begin
-  Exit(LenToSec(GetAudioTimS))
- End;
-
- Function VideoGraph.GetAudioPos:Real;
- Begin
-  Exit(LenToSec(GetAudioPosS))
- End;
-
- Function VideoGraph.GetVideoLen:Real;
- Begin
-  Exit(TimeEnd)
- End;
-
- Function VideoGraph.GetVideoPos:Real;
- Begin
-  If (AInd.Size>0)And(pAT<>pAN) Then
-  Begin
-   Result:=GetAudioPos;
-   TimeBegin:=DeltaTime-Result
-  End
-  Else If VInd.Size>0 Then
-   Result:=DeltaTime-TimeBegin
-  Else
-   Result:=0;
-  Result:=Result+TimeSkip;
-  if Result<0 Then Result:=0;
-  If Result>GetVideoLen Then Result:=GetVideoLen
- End;
-
- Function VideoGraph.GetAudioVolS:Word;
- Var tVol:LongWord;
- Begin
-  WaveOutGetVolume(hAOut,@tVol);
-  Result:=(HI(tVol)+LO(tVol))Div 2
- End;
-
- Function VideoGraph.GetAudioVol:Real;
- Begin
-  Exit(GetAudioVolS/$ffff)
- End;
-
- Procedure VideoGraph.SetVideoPos(_p:Real);
- Begin
-  TimeSkip:=_p;
-  If VInd.Size>0 Then
-  Begin
-   DelVideoAll;
-   av_seek_frame(avfmt,VInd.Size-1,Trunc(TimeSkip/av_q2d(vBase)),AVSEEK_FLAG_BACKWARD)
-  End
-  Else If AInd.Size>0 Then
-   av_seek_frame(avfmt,AInd.Size-1,Trunc(TimeSkip/av_q2d(aBase)),AVSEEK_FLAG_BACKWARD);
-  BoolSkip:=True;
-  BoolReset:=True;
-  BoolFrame:=False;
- End;
-
- Procedure VideoGraph.SetAudioVolS(_v:Word);
- Var tVol:LongWord;
- Begin
-  tVol:=_v<<16or _v;
-  WaveOutSetVolume(hAOut,tVol)
- End;
-
- Procedure VideoGraph.SetAudioVol(_v:Real);
- Begin
-  SetAudioVol(Min(Max(0,_v),1)*$ffff)
- End;
-
- Procedure VideoGraph.OutAudio;
- Var Remain:Longint;
- Begin
-  If BoolPlay Then
-  While pAN^.Next=Nil Do
-  Begin
-   If BoolReset Then
-   Begin
-    WaveOutReset(hAOut);
-    PauseAudio(BoolPause);
-    BoolReset:=False
-   End;
-   Sleep(1);
-   pAN:=pAN^.Next;
-   With pAN^ Do
-   With Frame^ Do
-   Begin
-    If (dwFlags And WHDR_PREPARED)>0 Then
-     WaveOutUnprepareHeader(hAOut,Frame,SizeOf(WAVEHDR));
-    WaveOutPrepareHeader(hAOut,Frame,SizeOf(WAVEHDR));
-    WaveOutWrite(hAOut,Frame,SizeOf(WAVEHDR))
-   End
-  End;
- End;
-
- Procedure VideoGraph.GetAudioData(Var Wave:byteArr;_P,_S:LongWord);
- Var
-  srcp,desp,nowp:Longint;
-  posf,sizf:LongWord;
-
-  Procedure MoveAudioData(pA:pAudioFrame);
-  Begin
-   While pA^.Next<>Nil Do
-   Begin
-    posf:=SecToLen(pA^.Time)*4;
-    sizf:=pA^.Size;
-    srcp:=Max(_P-posf,0);
-    desp:=Max(posf-_P,0);
-    nowp:=Max(Sizf-srcp-max(posf+sizf-_P-_S,0),0);
-    If nowp>0 Then Move((pA^.frame^.lpData+srcp)^,Wave[desp],nowp);
-    pA:=pA^.Next
-   End
-  End;
-
- Begin
-  _P:=_P*4;
-  _S:=_S*4;
-  SetLength(Wave,_S*4);
-  MoveAudioData(pAT);
-  MoveAudioData(pAS)
- End;
-
- Procedure VideoGraph.DrawSubtitleAV(avsb:pAVSubtitle);
- Var
-  i,j,k:Longint;
-  ShowStr,ShowStrLn:Ansistring;
-  TextDrawer:TextGraph;
- Begin
-  With avsb^ Do
-  Begin
-   For i:=0 to num_rec0ts-1 Do
-   With avsb^.rects[i]^ Do
-   Begin
-    case ttype Of
-     SUBTITLE_TEXT:showstr:=Text;
-     SUBTITLE_ASS:Begin
-       k:=0;
-       For j:=0 to Length(Ass)-1 Do
-       Begin
-        If Ass[j]=',' Then Inc(k);
-        If k=9 Then Break
-       End;
-       showstr:=Copy(Ass,j+2,Length(Ass)-j-1)
-      End
-    End;
-    ShowStr:=UTF8ToAnsi(ShowStr);
-    k:=2;
-    For j:=1 to Length(ShowStr) Do
-     Inc(K,Ord(ShowStr[j]='\'));
-    Repeat
-     j:=Pos('\',ShowStr);
-     If J>0 Then
-      Begin
-       ShowStrLn:=Copy(ShowStr,1,J-1);
-       Delete(ShowStr,1,J+1)
-      End
-     Else
-      Begin
-       ShowStrLn:=ShowStr;
-       ShowStr:=''
-      End;
-     TextDrawer.Create(ShowStrLn);
-     TextDrawer.SetSize(Max(10,Exchange.Height Div 20));
-     TextDrawer.FontColor:=Color_White;
-     TextDrawer.WriteTo(Exchange,Exchange.Height-TextDrawer.Height,(Exchange.Width-TextDrawer.Width)Div 2);
-     TextDrawer.Free;
-    Until J=0;
-   End
-  End
- End;
-
- Procedure VideoGraph.DrawSubtitle;
- Var
-  TimeCur:Real;
-  pS:pSubtitleFrame;
-  avsb:PAVSubtitle;
- Begin
-  TimeCur:=GetVideoPos;
-  pS:=pSS;
-  While pS^.Next<>Nil Do pS:=pS^.Next;
-  While pS^.Prev<>Nil Do
-  Begin
-   avsb:=pS^.Frame;
-   If avsb<>Nil Then
-    If (avsb^.start_display_time/1000+pS^.Time<=TimeCur)And
-       (avsb^.end_display_time/1000+pS^.Time>=TimeCur) Then
-     Begin
-      DrawSubtitleAV(avsb);
-      Break
-     End
-  End
- End;
-
- Procedure VideoGraph.DrawVideoAV(pV:pVideoFrame);
- Begin
-  Exchange.Free;
-  If pV=Nil Then Begin Exchange.Create; Exit End;
-  Exchange:=pV^.Frame^.Cut;
-  If (Exchange.Width>0)And(Exchange.Height>0) Then
-   Opt_Scale(Exchange,Height/Exchange.Height,Width/Exchange.Width)
- End;
-
- Procedure VideoGraph.DrawVideo;
- Begin
-  If BoolPlay Then
-
- End;
-
- Procedure VideoGraph.PlayAudioProc(h:HWAVEOUT;msg,inst,wp,lp:LongWord);StdCall;
- Var C:pAudioFrame;
- Begin
-  if msg=WOM_DONE Then
-  If pAT<>Nil Then
-  Begin
-   C:=pAT;
-   pAT:=pAT^.Next;
-   DelAudio(C)
-  End
- End;
-
- Procedure VideoGraph.PlayAudioThread;StdCall;
- Begin
-  BoolPlay:=True;
-  While BoolPlay Do OutAudio
- End;
-}
 
  Procedure VideoGraph.Resize(_W,_H:Longint);
  Begin
@@ -661,7 +303,7 @@ implementation
  Procedure VideoGraph.Load(Const Path:Ansistring);
  Var
   i:Longint;
-  _tid:DWord;
+  playaudioid:DWord;
   tmptext:TextGraph;
  Begin
   //1.Open Video File
@@ -684,9 +326,9 @@ implementation
   //3.Get Context About Decoder & Encoder
   If VInd.Size>0 Then
   Begin
-   vRate:=avfmt^.streams[VInd.Size-1]^.r_frame_rate;
-   vBase:=avfmt^.streams[VInd.Size-1]^.time_base;
-   vCodecP:=avfmt^.streams[VInd.Size-1]^.codec;
+   vRate:=avfmt^.streams[VInd[1]]^.r_frame_rate;
+   vBase:=avfmt^.streams[VInd[1]]^.time_base;
+   vCodecP:=avfmt^.streams[VInd[1]]^.codec;
    vCodec:=avcodec_find_decoder(vCodecP^.codec_id);
    avcodec_open2(vCodecP,vCodeC,Nil);
    vFrame:=avcodec_alloc_frame;
@@ -699,9 +341,9 @@ implementation
   End;
   If AInd.Size>0 Then
   Begin
-   aRate:=avfmt^.streams[AInd.Size-1]^.r_frame_rate;
-   aBase:=avfmt^.streams[AInd.Size-1]^.time_base;
-   aCodecP:=avfmt^.streams[AInd.Size-1]^.codec;
+   aRate:=avfmt^.streams[AInd[1]]^.r_frame_rate;
+   aBase:=avfmt^.streams[AInd[1]]^.time_base;
+   aCodecP:=avfmt^.streams[AInd[1]]^.codec;
    aCodec:=avcodec_find_decoder(aCodecP^.codec_id);
    avcodec_open2(aCodecP,aCodeC,Nil);
    aFrame:=avcodec_alloc_frame;
@@ -715,15 +357,15 @@ implementation
     nAvgBytesPerSec:=nBlockAlign*nSamplesPerSec;
     cbSize:=0
    End;
-//   CreateThread(Nil,0,Pointer(DWORD(@PlayAudioThread)),Nil,0,_tid);
-//   WaveOutOpen(@hAOut,WAVE_MAPPER,@fmt,DWord(@PlayAudioProc),0,CALLBACK_FUNCTION);
-//   SetAudioVol(0.25);
+   CreateThread(Nil,0,@PlayAudioThread,@Self,0,playaudioid);
+   WaveOutOpen(@hAOut,WAVE_MAPPER,@fmt,0,0,CALLBACK_FUNCTION);
+   Volume(0.25);
   End;
   If SInd.Size>0 Then
   Begin
-   sRate:=avfmt^.streams[SInd.Size-1]^.r_frame_rate;
-   sBase:=avfmt^.streams[SInd.Size-1]^.time_base;
-   sCodecP:=avfmt^.streams[SInd.Size-1]^.codec;
+   sRate:=avfmt^.streams[SInd[1]]^.r_frame_rate;
+   sBase:=avfmt^.streams[SInd[1]]^.time_base;
+   sCodecP:=avfmt^.streams[SInd[1]]^.codec;
    sCodec:=avcodec_find_decoder(sCodecP^.codec_id);
    avcodec_open2(sCodecP,sCodeC,Nil);
    sFrame:=ALLOCMEM(SizeOf(sFrame));

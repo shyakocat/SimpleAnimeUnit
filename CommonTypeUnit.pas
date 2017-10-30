@@ -1,7 +1,12 @@
+{$MODE OBJFPC}{$H+}
 unit CommonTypeUnit;
 interface
 //Common Type
 type
+
+ Alphabet=Set Of Char;
+
+ pInt=^Longint;
 
  generic List<T>=object
   Size:longint;
@@ -45,6 +50,31 @@ type
   Function MoveL:Boolean;
  End;
 
+
+
+Function ListPart(Src:Ansistring;Const Sep:Alphabet):SList;
+Function ListPart(Src:Ansistring):SList;
+Function ListPair(Src,pairL,pairR:Ansistring):SList;
+
+
+
+//Algorithm Type
+Type
+ Str_KMP=Object
+  Patt:Ansistring;
+  Next:pInt;
+  Procedure Create(Src:Ansistring);
+  Function Search(Chf:Ansistring;_pos:Longint):Longint;
+  Procedure Free;
+ End;
+
+ Str_Sunday=Object
+  Patt:Ansistring;
+  Bias:pInt;
+  Procedure Create(Src:Ansistring);
+  Function Search(Chf:Ansistring;_pos:Longint):Longint;
+  Procedure Free;
+ End;
 
 
 implementation
@@ -266,5 +296,159 @@ function List.isnil:boolean;
   If (Now=Nil)Or(Now^.L=Nil) then Exit(False);
   Now:=Now^.L; Exit(True)
  End;
+
+
+
+
+
+
+ Procedure Str_KMP.Create(Src:Ansistring);
+ Var n,i,j:Longint;
+ Begin
+  n:=Length(Src);
+  Patt:=Src;
+  Next:=GetMem((N+1)<<2);
+  Next[0]:=0;
+  Next[1]:=0;
+  i:=1;
+  j:=0;
+  While i<=n Do
+  If (j=0)Or(Src[i]=Src[j]) Then
+  Begin
+   Inc(i);
+   Inc(j);
+   Next[i]:=j
+  End
+  Else
+   j:=Next[j]
+ End;
+
+ Function Str_KMP.Search(Chf:Ansistring;_pos:Longint):Longint;
+ Var n,m,i,j:Longint; u,v:pChar;
+ Begin
+  n:=Length(Chf);
+  m:=Length(Patt);
+  If m<9 Then
+  Begin
+   u:=@Chf[1];
+   v:=@Patt[1];
+   For i:=_pos-1 to n-m Do
+   If CompareChar((u+i)^,v^,m)=0 Then Exit(i+1);
+   Exit(-1)
+  End;
+  u:=@Chf[1]-1;
+  v:=@Patt[1]-1;
+  i:=_pos;
+  j:=1;
+  While (i<=n)And(j<=m) Do
+  Begin
+   If (j=0)Or(u[i]=v[j]) Then
+   Begin
+    Inc(i);
+    Inc(j)
+   End
+   Else
+    j:=Next[j]
+  End;
+  If j>m Then Exit(i-m);
+  Exit(-1)
+ End;
+
+ Procedure Str_KMP.Free;
+ Begin
+  Patt:='';
+  FreeMemory(Next);
+  Next:=Nil
+ End;
+
+ Procedure Str_Sunday.Create(Src:Ansistring);
+ Var n,i:Longint;
+ Begin
+  Patt:=Src;
+  n:=Length(Src);
+  GetMem(Bias,1024);
+  For i:=0 to 255 Do Bias[i]:=n;
+  For i:=1 to n Do Bias[Byte(Src[i])]:=n-i+1
+ End;
+
+ Function Str_Sunday.Search(Chf:Ansistring;_pos:Longint):Longint;
+ Var n,m,i:Longint; u,v:PByte;
+ Begin
+  n:=Length(Chf)+1;
+  m:=Length(Patt);
+  If m<9 Then
+  Begin
+   u:=@Chf[1];
+   v:=@Patt[1];
+   For i:=_pos-1 to n-m Do
+   If CompareChar((u+i)^,v^,m)=0 Then Exit(i+1);
+   Exit(-1)
+  End;
+  u:=@Chf[1]-1;
+  v:=@Patt[1];
+  i:=_pos+m;
+  While i<=n Do
+  Begin
+   If CompareChar((u+i-m)^,v^,m)=0 Then Exit(i-m);
+   If i=n Then Break;Inc(i,Bias[(u+i)^])
+  End;
+  Exit(-1)
+ End;
+
+ Procedure Str_Sunday.Free;
+ Begin
+  Patt:='';
+  FreeMemory(Bias)
+ End;
+
+
+
+Function ListPart(Src:Ansistring):SList;
+Begin
+ Exit(ListPart(Src,[#0..#32]))
+End;
+
+Function ListPart(Src:Ansistring;Const sep:Alphabet):SList;
+Var i,j:Longint;
+Begin
+ Result.Clear;
+ j:=1;
+ For i:=1 to Length(Src) Do
+ If Src[i]in Sep Then
+ Begin
+  If i>j Then Result.PushBack(Copy(Src,j,i-j));
+  j:=i+1
+ End;
+ If i+1>j Then Result.PushBack(Copy(Src,j,i+1-j))
+End;
+
+Function ListPair(Src,pairL,pairR:Ansistring):SList;
+Var
+ i,j,k,c,x:Longint;
+ tmpL,tmpR:Str_KMP;
+Begin
+ tmpL.Create(pairL);
+ tmpR.Create(pairR);
+ Result.Clear;
+ x:=-1;
+ i:=1;
+ j:=tmpL.Search(Src,1);
+ k:=tmpR.Search(Src,1);
+ While i<=Length(Src) Do
+ Begin
+  If x=-1 Then
+   If j=-1 Then Break
+           Else Begin x:=j+Length(PairL); i:=x; c:=1 End
+  Else
+   If k=-1 Then Break Else
+    If (j<>-1)And(j<k) Then Begin inc(c); i:=j+Length(PairL) End
+                       Else Begin dec(c); i:=k+Length(PairR);
+                                  If c=0 Then Begin Result.PushBack(Copy(Src,x,k-x)); x:=-1 End End;
+  If j<i Then j:=tmpL.Search(Src,i);
+  If k<i Then k:=tmpR.Search(Src,i)
+ End;
+ tmpL.Free;
+ tmpR.Free;
+End;
 
 end.
