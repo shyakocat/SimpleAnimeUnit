@@ -1,4 +1,4 @@
-{$M 100000000,0,100000000}
+﻿{$M 100000000,0,100000000}
 {$MODE OBJFPC}{$H+}
 //{$OPTIMIZATION ON,REGVAR,FASTMATH,LOOPUNROLL,CSE,DFA}
 //{$R-,S-,Q-,I-,D-}
@@ -257,8 +257,8 @@ type
   Procedure SetText(Const Str:Ansistring);
   Procedure SetSize(_s:Longint);
   Procedure SetType(Const tp:Ansistring);
+  Procedure Update;
   Function Cut:TextGraph;
-  Function CountWidth:Longint;
   Function Reproduce:pBaseGraph;Virtual;
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
  End;
@@ -542,7 +542,6 @@ Begin Exit((a.Width=b.Width)And(a.Height=b.Height)And(a.Canvas=b.Canvas)) End;
 
   Img:TFPMemoryImage;
   a,atmp:Graph;
-  i,j:Longint;
   DelayS:Int64=0;
  begin
   result.Create;
@@ -1893,7 +1892,6 @@ end;
 function CompressGraph.DeCompress:Graph;
 var
  a:Graph;
- Tmp:TMemoryStream;
 
  procedure DeCompress_RLC;
  var
@@ -2164,7 +2162,7 @@ Begin
  Width:=0;
 End;
 
-Function TextGraph.CountWidth:Longint;
+Procedure TextGraph.Update;
 Var
  dc:HDC;
  tmp:LPSize;
@@ -2181,7 +2179,9 @@ Begin
  SelectObject(dc,hFt);
  New(Tmp);
  GetTextExtentPoint32(dc,Pchar(Text),Length(Text),tmp);
- Result:=Tmp^.CX;
+ Width:=Tmp^.CX;
+ Height:=Tmp^.CY;
+ Dispose(Tmp);
  DeleteObject(hFt);
  DeleteDC(dc)
 End;
@@ -2198,8 +2198,7 @@ Begin
  UnderLine:=False;
  StrikeOut:=False;
  CharSet:=GB2312_CHARSET;
- Height:=FontSize;
- Width:=CountWidth;
+ Update
 End;
 
 Function TextGraph.Cut:TextGraph;
@@ -2222,21 +2221,19 @@ ENd;
 Procedure TextGraph.SetText(Const Str:AnsiString);
 Begin
  Text:=Str;
- Height:=FontSize;
- Width:=CountWidth;
+ Update
 End;
 
 Procedure TextGraph.SetSize(_s:Longint);
 Begin
  FontSize:=_s;
- Height:=FontSize;
- Width:=CountWidth;
+ Update
 End;
 
 Procedure TextGraph.SetType(Const tp:Ansistring);
 Begin
  FontType:=tp;
- Width:=CountWidth
+ Update
 End;
 
 Destructor TextGraph.Free;
@@ -2319,7 +2316,8 @@ Begin
  FreeMem(buf);
  DeleteObject(hbmp);
  DeleteDC(dc);
- DrawTo(Clip,A,ClipX1-1,ClipY1-1)
+ DrawTo(Clip,A,ClipX1-1,ClipY1-1);
+ Clip.Free
 End;
 
 Function TextGraph.Reproduce:pBaseGraph;
@@ -3525,6 +3523,6 @@ Var
 begin
  ProgramStart:=GetTickCount64;
  GetWindowRect(GetDesktopWindow,lpRect);
- ScrWidth:=lpRect.Width;
- ScrHeight:=lpRect.Height;
+ ScrWidth:=lpRect.Right-lpRect.Left;
+ ScrHeight:=lpRect.Bottom-lpRect.Top;
 end.
