@@ -1572,6 +1572,7 @@ begin
  Gauss;
  OutG.Create;
  OutG.Create(Height,Width);
+ OutG.Fill(1,1,Height,Width,Color_Alpha);
  for i:=1 to Height do
  for j:=1 to Width do
  begin

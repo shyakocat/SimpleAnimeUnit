@@ -58,7 +58,7 @@ Type
   aStream:Specialize Queue<AudioFrame>;
 
   Constructor Create;
-  Destructor Free;
+  Destructor Free;Virtual;
 
   Procedure AudioFree;
 

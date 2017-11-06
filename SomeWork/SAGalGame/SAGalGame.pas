@@ -1193,7 +1193,7 @@ begin
 
   Lock;
   ScreenClear;
-  Cache.Display;
+  Cache.DisplayDirect;
   Saves.Display;
   UnLock
  Until (Key=83)And(KeyRelease=1);
@@ -1304,7 +1304,7 @@ begin
 
   Lock;
   ScreenClear;
-  Cache.Display;
+  Cache.DisplayDirect;
   Saves.Display;
   UnLock
  Until (Key=83)or(LoadObj<>0);

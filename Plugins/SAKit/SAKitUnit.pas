@@ -1,6 +1,6 @@
 unit SAkitUnit;
 interface
-uses SimpleAnimeUnit2,Windows,SysUtils;
+uses CommonTypeUnit,SimpleAnimeUnit2,Windows,SysUtils;
 
 
 Type
@@ -104,8 +104,8 @@ Type
   Plain:MultiGraph;
   Constructor Create;
   Constructor Create(_up,_over,_down:pBaseGraph);
-  Constructor Create1(_H,_W:Longint;Const _C:Color);
-  Constructor Create2(_H,_W:Longint);
+  Constructor CreateType1(_H,_W:Longint;Const _C:Color);
+  Constructor CreateType2(_H,_W:Longint);
   Procedure SetSelect(_SAEtp:ShortInt);
   Procedure SetPic(_SAEtp:ShortInt;Ind:pBaseGraph);
   Procedure SetText(Const T:TextGraph);
@@ -119,10 +119,11 @@ Type
   Check:Boolean;
   Constructor Create;
   Constructor Create(_up,_down:pBaseGraph);
-  Constructor Create1;
-  Constructor Create2;
+  Constructor CreateType1;
+  Constructor CreateType2;
   Function Reproduce:pElement;Virtual;
  End;
+
 
 Var
  SAButtonStatusInit:SAButtonStatus=(Gray:False;    //Gray=Disable
@@ -687,7 +688,7 @@ End;
   End
  End;
 
-Constructor SAButtonBox.Create1(_H,_W:Longint;Const _C:Color);
+Constructor SAButtonBox.CreateType1(_H,_W:Longint;Const _C:Color);
 Var
  Core:pMultiGraph;
  TmpG:pPureGraph;
@@ -768,7 +769,7 @@ End;
 
 
 //Picture Sourece : http://bbs.cskin.net/thread-63-1-1.html
-Constructor SAButtonBox.Create2(_H,_W:Longint);
+Constructor SAButtonBox.CreateType2(_H,_W:Longint);
 Var
  _Ratio:Longint;
  QBtn_Gray,
@@ -987,7 +988,7 @@ End;
   pMultiGraph(Env^.Role.Source)^.SetSelect(1+Ord(cEnv^.Check));
  End;
 
-Constructor SACheckBox.Create1;
+Constructor SACheckBox.CreateType1;
 Var
  Tmp:MultiGraph;
  tBG:BitmapGraph;
@@ -1017,7 +1018,7 @@ Begin
  Talk.MouseEvent:=@SACheckBoxMouseDeal1
 End;
 
-Constructor SACheckBox.Create2;
+Constructor SACheckBox.CreateType2;
 Var
  Tmp:MultiGraph;
  tBG:BitmapGraph;
