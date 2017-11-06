@@ -185,8 +185,8 @@ implementation
   tmpA:AudioFrame;
  Begin
   TimeNow:=(DeltaTime-TimeBias)/1000;
-  If (TimeNow<0)Or(TimeNow>TimeEnd) Then Begin If vExchange.Width<>0 Then vExchange.Create; aExchange:=Nil End;
   If BoolPause And Not BoolSkip Then Exit;
+  If (TimeNow<0)Or(TimeNow>TimeEnd) Then Begin If vExchange.Width<>0 Then vExchange.Create; aExchange:=Nil End;
   If BoolPlayVideo Then Begin
   If (TimeLastV>=TimeNow)And(Not BoolSkip) Then Exit;
   If (BoolSkip)Or
