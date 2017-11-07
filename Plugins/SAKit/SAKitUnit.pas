@@ -1,16 +1,23 @@
+{$MODE OBJFPC}{$H+}
 unit SAkitUnit;
 interface
-uses CommonTypeUnit,SimpleAnimeUnit2,Windows,SysUtils;
+uses CommonTypeUnit,SimpleAnimeUnit2,Windows,SysUtils,Math;
 
 
 Type
 
  IntList=Specialize List<Longint>;
 
+
+
+ dw_Proc=Function(Env:pElement;Below:pGraph):pGraph;
+
+
  pPureGraph=^PureGraph;
  pGradualGraph=^GradualGraph;
  pMultiGraph=^MultiGraph;
  pBitmapGraph=^BitmapGraph;
+ pScriptGraph=^ScriptGraph;
 
 
  PureGraph=Object(BaseGraph)
@@ -82,6 +89,15 @@ Type
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
  End;
 
+ ScriptGraph=Object(BaseGraph)
+  Process:dw_Proc;
+  Constructor Create;
+  Constructor Create(_p:dw_Proc);
+  Destructor Free;
+  Function Reproduce:pBaseGraph;Virtual;
+  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+ End;
+
 Const
  SAMouseUp=1;
  SAMouseOver=2;
@@ -93,10 +109,11 @@ Type
 
  pSAButtonBox=^SAButtonBox;
  pSACheckBox=^SACheckBox;
+ pSAListBox=^SAListBox;
 
  SAButtonStatus=Record Gray,Down,Focus,High,Normal:Boolean End;
 
- SAButtonBox=Object(Element)
+ SAButtonBox=Packed Object(Element)
   Enable:Boolean;
   Caption:TextGraph;
   CustomHandle:AnimeLog;
@@ -115,12 +132,25 @@ Type
   Function Reproduce:pElement;Virtual;
  End;
 
- SACheckBox=Object(Element)
+ SACheckBox=Packed Object(Element)
   Check:Boolean;
   Constructor Create;
   Constructor Create(_up,_down:pBaseGraph);
   Constructor CreateType1;
   Constructor CreateType2;
+  Function Reproduce:pElement;Virtual;
+ End;
+
+ SAListBox=Packed Object(Element)
+  ListBoxType,StatusTag:ShortInt;
+  OWidth,OHeight,EHeight,dw_Bias:Longint;
+  Standard:TextGraph;
+  BackGround:pBaseGraph;
+  Entry:SList;
+  EntryOver,EntrySelect:Longint;
+  Constructor Create;
+  Constructor Create(_H,_W,_S:Longint);
+  Procedure AddEntry(_entry:Ansistring);
   Function Reproduce:pElement;Virtual;
  End;
 
@@ -131,6 +161,7 @@ Var
                                     Focus:False;
                                     High:False;    //High=Activation(Over)
                                     Normal:True);
+
 
 
 implementation
@@ -615,13 +646,17 @@ Begin
 End;
 
 Procedure BitmapGraph.DrawText(x,y:Longint;s:lpCTSTR;c:Longint);
+Var hOldBkMode:LongWord;
 Begin
- TextOut(Dc,x,y,s,c)
+ hOldBkMode:=GetBkMode(Dc);
+ SetBkMode(Dc,TRANSPARENT);
+ TextOut(Dc,x,y,s,c);
+ SetBkMode(Dc,hOldBkMode)
 End;
 
 Procedure BitmapGraph.DrawText(x,y:Longint;Const T:TextGraph);
 Var
- hFont,hOldFont:LongWord;
+ hOldBkMode,hFont,hOldFont:LongWord;
 Begin
  With T Do
  hFont:=CreateFont(FontSize,0,Round(FontAngle*10),Round(FontAngle*10),
@@ -632,9 +667,42 @@ Begin
                    DEFAULT_PITCH or FF_DONTCARE,
                    PChar(FontType));
  hOldFont:=SelectObject(Dc,hFont);
+ hOldBkMode:=GetBkMode(Dc);
+ SetBkMode(Dc,TRANSPARENT);
  TextOut(Dc,x,y,pChar(T.Text),Length(T.Text));
+ SetBkMode(Dc,hOldBkMode);
  SelectObject(Dc,hOldFont);
  DeleteObject(hFont)
+End;
+
+Constructor ScriptGraph.Create;
+Begin
+ Process:=Nil
+End;
+
+Constructor ScriptGraph.Create(_p:dw_Proc);
+Begin
+ Process:=_p
+End;
+
+Destructor ScriptGraph.Free;
+Begin
+ Process:=Nil
+End;
+
+Function ScriptGraph.Reproduce:pBaseGraph;
+Var Tmp:pScriptGraph;
+Begin
+ New(Tmp,Create(Process));
+ Exit(Tmp)
+End;
+
+Function ScriptGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+Begin
+ If Process=Nil Then Exit(nil);
+ Result:=Process(Env,Below);
+ Width:=Result^.Width;
+ Height:=Result^.Height;
 End;
 
 Constructor SAButtonBox.Create;
@@ -654,6 +722,7 @@ End;
   With Std Do
   Begin
    Gray:=Enable;
+   If Inner And 1=1 Then MACMouseAccept:=True;
    If (Inner And 1=1)And(E.Press) Then Begin Down:=True; Focus:=True End;
    If E.Release Then Begin Down:=False; If Inner And 1=0 Then Focus:=False End;
    High:=Inner And 1=1;
@@ -663,6 +732,7 @@ End;
 
  Procedure SAButtonBoxMouseDeal1(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  Begin
+  If MACMouseAccept Then Exit;
   SAButtonBoxGeneral(Env,Below,E,Inner);
   With pSAButtonBox(Env)^ Do
   With Std Do
@@ -672,7 +742,7 @@ End;
    Begin
     SetSelect(SAMouseDown);
     Role.Alpha:=1;
-    if (E.Press)And(CustomHandle.Enable) Then
+    if (E.Press)And(Inner And 1=1)And(CustomHandle.Enable) Then
      If CustomHandle.MouseEvent<>Nil Then
       CustomHandle.MouseEvent(Env,Below,E,Inner)
    End Else
@@ -712,6 +782,7 @@ End;
 
  Procedure SAButtonBoxMouseDeal2(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  Begin
+  If MACMouseAccept Then Exit;
   SAButtonBoxGeneral(Env,Below,E,Inner);
   With pSAButtonBox(Env)^ Do
   WIth Std Do
@@ -719,7 +790,7 @@ End;
    If Down Then
    Begin
     SetSelect(SAMouseDown);
-    If (E.Press)And(CustomHandle.Enable) Then
+    If (E.Press)And(Inner And 1=1)And(CustomHandle.Enable) Then
      If CustomHandle.MouseEvent<>Nil Then
       CustomHandle.MouseEvent(Env,Below,E,Inner)
    End Else
@@ -752,6 +823,7 @@ End;
 
  Procedure SAButtonBoxMouseDeal3(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  Begin
+  If MACMouseAccept Then Exit;
   SAButtonBoxGeneral(Env,Below,E,Inner);
   With pSAButtonBox(Env)^ Do
   With Std Do
@@ -982,6 +1054,7 @@ End;
  Var
   cEnv:pSACheckBox;
  Begin
+  If MACMouseAccept Then Exit;
   cEnv:=pSACheckBox(Env);
   If (inner And 1=1)And(E.Button=1)And(E.Press) Then
    cEnv^.Check:=Not cEnv^.Check;
@@ -1072,6 +1145,141 @@ Begin
  Tmp^.Check:=Check;
  Exit(Tmp)
 End;
+{
+ SAListBox=Packed Object(Element)
+  ListBoxType:ShortInt;
+  OWidth,OHeight,IWidth,IHeight:Longint;
+  Standard:TextGraph;
+  BackGround:pBaseGraph;
+  Entry:SList;
+  EntrySelect:Longint;
+  Constructor Create;
+  Constructor Create(_H,_W,_S:Longint);
+  Procedure AddEntry(_entry:Ansistring);
+  Function Reproduce:pElement;Virtual;
+ End;
+}
+Constructor SAListBox.Create;
+Begin
+ ListBoxType:=-1;
+ OWidth:=0;
+ OHeight:=0;
+ EHeight:=0;
+ dw_Bias:=0;
+ Standard.Create;
+ BackGround:=Nil;
+ Entry.Clear;
+ EntryOver:=0;
+ EntrySelect:=0;
+ Role.Create;
+ Acts.Create;
+ Talk.Create;
+End;
 
+ Procedure SAListBoxMouseDeal1(Env:pElement;Below:pGraph;Const E:SAMouseEvent;Inner:ShortInt);
+ Begin
+  If MACMouseAccept Then Exit;
+  With pSAListBox(Env)^ Do Begin
+   dw_Bias:=Max(0,Min(dw_Bias,Entry.Size*EHeight-OHeight));
+   If (MACClickX<>-1)And(MACClickY<>-1)And
+      (Entry.Size*EHeight>OHeight)And
+      (OWidth-12<=MACClickX-Role.BiasY)And(MACClickX-Role.BiasY<=OWidth+5) Then Begin
+    MACMouseAccept:=True;
+    StatusTag:=1; {Now Draging}
+//  EntryOver:=0;
+    dw_Bias:=Max(0,Min(Entry.Size*EHeight-OHeight,Round((E.x-Role.BiasX)/OHeight*(Entry.Size*EHeight)-OHeight*0.5)))
+   End Else Begin
+    If Inner And 1=0 Then EntryOver:=0
+    Else Begin EntryOver:=Round(E.x-Role.BiasX+dw_Bias)Div EHeight+1;
+               If (EntryOver<1)Or(EntryOver>Entry.Size) Then EntryOver:=0 End;
+    If (E.Button And 1=1)And(E.Release)And(StatusTag=0) Then Begin EntrySelect:=EntryOver; MACMouseAccept:=true End;
+    StatusTag:=0
+   End
+  End
+ End;
+
+ Function SAListBoxDesign1(Env:pElement;Below:pGraph):pGraph;
+ Var
+  i,CC1,CC2,CC3,CC4,CC5,CC6,CD1,CD2:Longint;
+  Cav:pBitmapGraph; tmp,Res:pGraph;
+ Begin
+  CC1:=RGB(98,255,176);
+  CC2:=RGB(0,198,99);
+  CC3:=RGB(111,190,255);
+  CC4:=RGB(43,159,255);
+  CC5:=RGB(255,255,255);
+  CC6:=RGB(231,231,231);
+  With pSAListBox(Env)^ Do Begin
+   New(tmp); tmp:=BackGround^.Recovery(Env,Below);
+   New(Cav,Create(tmp^)); tmp^.Free;
+   dw_Bias:=Max(0,Min(dw_Bias,Entry.Size*EHeight-OHeight));
+   i:=Max(1,dw_Bias Div EHeight);
+   While (i<=Entry.Size)And((i-1)*EHeight<=dw_Bias+OHeight) Do Begin
+    If EntrySelect=I Then
+     Cav^.DrawRect(0,(i-1)*EHeight-dw_Bias,OWidth,i*EHeight-dw_Bias,CC1,CC2,2)
+    Else
+    If EntryOver=I Then
+     Cav^.DrawRect(0,(i-1)*EHeight-dw_Bias,OWidth,i*EHeight-dw_Bias,CC3,CC4,2)
+    Else
+     Cav^.DrawRect(0,(i-1)*EHeight-dw_Bias,OWidth,i*EHeight-dw_Bias,CC5,CC6,2);
+    Standard.SetText(Entry[i]);
+    Cav^.DrawText(5,(i-1)*EHeight+2-dw_Bias,Standard);
+    Inc(I)
+   End;
+   New(Res); Res^:=Cav^.toGraph; Cav^.Free;
+   If EHeight*Entry.Size>OHeight Then
+    Res^.filla(Round(dw_Bias/(Entry.Size*EHeight)*OHeight),OWidth-7,Round((dw_Bias+OHeight)/(Entry.Size*EHeight)*OHeight),OWidth,RGBA(252,188,109,150))
+  End;
+  Exit(Res)
+ End;
+
+Constructor SAListBox.Create(_H,_W,_S:Longint);
+Var tmp:pPureGraph; src:pScriptGraph;
+Begin
+ ListBoxType:=0;
+ StatusTag:=0;
+ OWidth:=_W;
+ OHeight:=_H;
+ EHeight:=_S+4;
+ dw_Bias:=0;
+ Standard.Create;
+ Standard.SetSize(_S);
+ New(tmp,Create(_H,_W,Color_White));
+ BackGround:=Tmp;
+ New(src,Create(@SAListBoxDesign1));
+ Entry.Clear;
+ EntryOver:=0;
+ EntrySelect:=0;
+ Role.Create(src^); src^.Free;
+ Acts.Create;
+ Talk.Create;
+ Talk.MouseEvent:=@SAListBoxMouseDeal1;
+End;
+
+Procedure SAListBox.AddEntry(_entry:Ansistring);
+Begin
+ Entry.PushBack(_entry)
+End;
+
+Function SAListBox.Reproduce:pElement;
+Var Tmp:pSAListBox;
+Begin
+ New(Tmp,Create);
+ Tmp^.Role:=Role.Cut;
+ Tmp^.Acts:=Acts;
+ Tmp^.Talk:=Talk;
+ Tmp^.ListBoxType:=ListBoxType;
+ Tmp^.StatusTag:=StatusTag;
+ Tmp^.OWidth:=OWidth;
+ Tmp^.OHeight:=OHeight;
+ Tmp^.EHeight:=EHeight;
+ Tmp^.dw_Bias:=dw_Bias;
+ Tmp^.Standard:=Standard;
+ Tmp^.BackGround:=BackGround;
+ Tmp^.Entry:=Entry.Clone(1,Entry.Size);
+ Tmp^.EntryOver:=Tmp^.EntryOver;
+ Tmp^.EntrySelect:=EntrySelect;
+ Exit(Tmp)
+End;
 
 end.

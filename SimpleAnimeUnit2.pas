@@ -1,4 +1,4 @@
-﻿{$M 100000000,0,100000000}
+{$M 100000000,0,100000000}
 {$MODE OBJFPC}{$H+}
 //{$OPTIMIZATION ON,REGVAR,FASTMATH,LOOPUNROLL,CSE,DFA}
 //{$R-,S-,Q-,I-,D-}
@@ -32,8 +32,8 @@ var
  ScrWidth,ScrHeight:Longint;
 
 
- MACMouseDown:Boolean=False;
- MACMouseX,MACMouseY:Longint;
+ MACMouseDown,MACMouseAccept,MACKeyAccept:Boolean;
+ MACMouseX,MACMouseY,MACClickX,MACClickY:Longint;
 
 Type
  EList=Specialize List<IPTCEvent>;
@@ -184,6 +184,7 @@ type
   function getp(x,y:longint):Color;
   procedure setp(x,y:longint;const c:Color);
   procedure fill(x1,y1,x2,y2:longint;const c:Color);
+  procedure filla(x1,y1,x2,y2:longint;const c:Color);
   procedure resize(newH,newW:Longint);
   procedure reverse(_rv:Longint);
   function cut(x1,y1,x2,y2:longint):Graph;
@@ -883,8 +884,8 @@ Begin
    x:=tmpB.X;
    y:=tmpB.Y;
    button:=GetMouseCode(tmpB.button);
-   If tmpB.Press Then MACMouseDown:=True;
-   If tmpB.Release Then MACMouseDown:=False;
+   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=x; MACClickY:=y End;
+   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
    MACMouseX:=x;
    MACMouseY:=y;
   End
@@ -919,8 +920,8 @@ Begin
    x:=tmpB.X;
    y:=tmpB.Y;
    button:=GetMouseCode(tmpB.button);
-   If tmpB.Press Then MACMouseDown:=True;
-   If tmpB.Release Then MACMouseDown:=False;
+   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=x; MACClickY:=y End;
+   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
    MACMouseX:=x;
    MACMouseY:=y;
   End
@@ -958,8 +959,8 @@ Begin
    E.button:=GetMouseCode(tmpB.button);
    E.press:=tmpB.press;
    E.release:=tmpB.release;
-   If tmpB.Press Then MACMouseDown:=True;
-   If tmpB.Release Then MACMouseDown:=False;
+   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=E.x; MACClickY:=E.y End;
+   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
    MACMouseX:=E.x;
    MACMouseY:=E.y;
   End
@@ -998,8 +999,8 @@ Begin
    E.button:=GetMouseCode(tmpB.button);
    E.press:=tmpB.press;
    E.release:=tmpB.release;
-   If tmpB.Press Then MACMouseDown:=True;
-   If tmpB.Release Then MACMouseDown:=False;
+   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=E.x; MACClickY:=E.y End;
+   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
    MACMouseX:=E.x;
    MACMouseY:=E.y;
   End
@@ -1427,11 +1428,22 @@ begin
 end;
 
 procedure Graph.fill(x1,y1,x2,y2:longint;const c:Color);
-var i,j:longint;
+var i,j:longint; p:pColor;
 begin
- for i:=x1-1 to x2-1 do
- for j:=y1-1 to y2-1 do Canvas[i*Width+j]:=c
+ x1:=Max(1,x1); x2:=Min(Height,x2);
+ y1:=Max(1,y1); y2:=Min(Width,y2);
+ for i:=x1-1 to x2-1 do Begin p:=Canvas+i*Width+y1-1;
+ for j:=y1-1 to y2-1 Do Begin p^:=c; inc(p) End End
 end;
+
+Procedure Graph.filla(x1,y1,x2,y2:Longint;const c:Color);
+Var i,j:Longint; p:pColor;
+Begin
+ x1:=Max(1,x1); x2:=Min(Height,x2);
+ y1:=Max(1,y1); y2:=Min(Width,y2);
+ For i:=x1-1 to x2-1 Do Begin p:=Canvas+i*Width+y1-1;
+ For j:=y1-1 to y2-1 Do Begin PureBlendColor(p^,c); Inc(p) End End
+End;
 
 procedure Graph.Resize(newH,newW:Longint);
 var
@@ -3334,6 +3346,8 @@ var
  SAKe:SAKeyEvent;
 begin
  If Not ConsoleUsing Then Exit;
+ MACMouseAccept:=False;
+ MACKeyAccept:=False;
  while Console.NextEvent(Event,False,PTCAnyEvent) do
  begin
   if Supports(Event,IPTCMouseEvent) then
@@ -3346,8 +3360,8 @@ begin
      SAMe.button:=GetMouseCode(tmpB.Button);
      SAMe.press:=tmpB.Press;
      SAMe.release:=tmpB.Release;
-     If tmpB.Press Then MACMouseDown:=True;
-     If tmpB.Release Then MACMouseDown:=False;
+     If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=tmpB.x; MACClickY:=tmpB.y End;
+     If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
      MACMouseX:=tmpB.x;
      MACMouseY:=tmpB.y;
     End
@@ -3362,7 +3376,7 @@ begin
      MACMouseX:=tmpM.x;
      MACMouseY:=tmpM.y;
     End;
-    for i:=1 to Member.Size do
+    for i:=Member.Size Downto 1 do
      if Member.Items[i]^.Role.Visible then
      If Member.Items[i]^.Talk.Enable Then
       With SAMe Do
@@ -3378,14 +3392,14 @@ begin
     SAKe.alt:=tmpK.Alt;
     SAKe.shift:=tmpK.Shift;
     SAKe.ctrl:=tmpK.Control;
-    for i:=1 to Member.Size do
+    for i:=Member.Size Downto 1 do
      if Member.Items[i]^.Role.Visible then
      If Member.Items[i]^.Talk.Enable Then
       With SAKe Do
       Member.Items[i]^.Talk.DealKey(Member.Items[i],Below,key,press,release,alt,shift,ctrl)
    end;
  end;
- for i:=1 to Member.Size do
+ for i:=Member.Size Downto 1 do
  If Member.Items[i]^.Talk.Enable Then
   Member.Items[i]^.Talk.DealNon(Member.Items[i],Below)
 end;
@@ -3400,6 +3414,8 @@ var
  SAKe:SAKeyEvent;
 begin
  If Not ConsoleUsing Then Exit;
+ MACMouseAccept:=False;
+ MACKeyAccept:=False;
  For J:=1 to L.Size Do
  begin
   Event:=L[J];
@@ -3413,8 +3429,8 @@ begin
      SAMe.button:=GetMouseCode(tmpB.Button);
      SAMe.press:=tmpB.Press;
      SAMe.release:=tmpB.Release;
-     If tmpB.Press Then MACMouseDown:=True;
-     If tmpB.Release Then MACMouseDown:=False;
+     If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=tmpB.x; MACClickY:=tmpB.y End;
+     If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
      MACMouseX:=tmpB.x;
      MACMouseY:=tmpB.y;
     End
@@ -3429,7 +3445,7 @@ begin
      MACMouseX:=tmpM.x;
      MACMouseY:=tmpM.y;
     End;
-    for i:=1 to Member.Size do
+    for i:=Member.Size Downto 1 do
      if Member.Items[i]^.Role.Visible then
      If Member.Items[i]^.Talk.Enable Then
       With SAMe Do
@@ -3445,14 +3461,14 @@ begin
     SAKe.alt:=tmpK.Alt;
     SAKe.shift:=tmpK.Shift;
     SAKe.ctrl:=tmpK.Control;
-    for i:=1 to Member.Size do
+    for i:=Member.Size Downto 1 do
      if Member.Items[i]^.Role.Visible then
      If Member.Items[i]^.Talk.Enable Then
       With SAKe Do
       Member.Items[i]^.Talk.DealKey(Member.Items[i],Below,key,press,release,alt,shift,ctrl)
    end
  end;
- for i:=1 to Member.Size do
+ for i:=Member.Size Downto 1 do
  If Member.Items[i]^.Talk.Enable Then
   Member.Items[i]^.Talk.DealNon(Member.Items[i],Below)
 end;
@@ -3526,4 +3542,10 @@ begin
  GetWindowRect(GetDesktopWindow,lpRect);
  ScrWidth:=lpRect.Right-lpRect.Left;
  ScrHeight:=lpRect.Bottom-lpRect.Top;
+
+ MACMouseDown:=False;
+ MACMouseX:=-1;
+ MACMouseY:=-1;
+ MACClickX:=-1;
+ MACClickY:=-1;
 end.
