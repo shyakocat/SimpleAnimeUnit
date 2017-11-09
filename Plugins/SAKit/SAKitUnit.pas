@@ -723,6 +723,7 @@ End;
   Begin
    Gray:=Enable;
    If Inner And 1=1 Then MACMouseAccept:=True;
+   If Inner And 1=0 Then Down:=False;
    If (Inner And 1=1)And(E.Press) Then Begin Down:=True; Focus:=True End;
    If E.Release Then Begin Down:=False; If Inner And 1=0 Then Focus:=False End;
    High:=Inner And 1=1;

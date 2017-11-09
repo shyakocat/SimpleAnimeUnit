@@ -1,6 +1,7 @@
+{$MODE OBJFPC}{$H+}
 unit SAPackageUnit;
 interface
-uses SysUtils,Classes,CommonTypeUnit;
+uses SysUtils,Classes,CommonTypeUnit,Zipper;
 
 const
  sapkg_directory=1;
@@ -14,6 +15,8 @@ type
  pInt=^Longint;
  pUInt=^Dword;
  pBool=^Boolean;
+
+ MList=Specialize List<TMemoryStream>;
 
  pSAPackageObj=^SAPackageObj;
  SAPackageObj=Packed Record
@@ -49,6 +52,13 @@ type
  Function GetFileSize(_fname:Ansistring):Int64;
  Procedure CopyFile(_fnameinput,_fnameoutput:Ansistring);
 
+ Function ZipFile(data:Ansistring):TMemoryStream;
+ Function ZipFile(data:SList):TMemoryStream;
+ Function ZipFile(data:TMemoryStream):TMemoryStream;
+ Function ZipFile(data:MList):TMemoryStream;
+ Function UnzipFile(data:Ansistring):TMemoryStream;
+ Function UnzipFile(data:TMemoryStream):TMemoryStream;
+
 
  Function sapkg_NewFile(_fname:Ansistring;_data:TMemoryStream):SAPackageObj;
  Function sapkg_NewFile(_fname:Ansistring;_pointer:Pointer;Const _len:Int64):SAPackageObj;
@@ -76,6 +86,124 @@ Begin
   BlockWrite(G,Buf,NumRead,NumWrite);
  Until (NumRead=0)Or(NumWrite<>NumRead);
  Close(F); Close(G)
+End;
+
+Function ZipFile(data:Ansistring):TMemoryStream;
+var tmp:TZipper;
+Begin
+ tmp:=TZipper.Create;
+ tmp.Entries.AddFileEntry(data);
+ result:=TMemoryStream.Create;
+ tmp.SaveToStream(result);
+ tmp.Free;
+End;
+
+Function ZipFile(data:SList):TMemoryStream;
+Var tmp:TZipper; i:Longint;
+Begin
+ tmp:=TZipper.Create;
+ For i:=1 to data.Size Do tmp.Entries.AddFileEntry(data.Items[i]);
+ Result:=TMemoryStream.Create;
+ tmp.SaveToStream(Result);
+ tmp.Free;
+End;
+
+Function ZipFile(data:TMemoryStream):TMemoryStream;
+Var tmp:TZipper;
+Begin
+ tmp:=TZipper.Create;
+ tmp.Entries.AddFileEntry(data,'tmp');
+ Result:=TMemoryStream.Create;
+ tmp.SaveToStream(Result);
+ tmp.Free;
+End;
+
+Function ZipFile(data:MList):TMemoryStream;
+Var tmp:TZipper; i:Longint;
+Begin
+ tmp:=TZipper.Create;
+ For i:=1 to data.Size Do tmp.Entries.AddFileEntry(data.Items[i],'tmp'+IntToStr(i));
+ Result:=TMemoryStream.Create;
+ tmp.SaveToStream(Result);
+ tmp.Free;
+End;
+
+Type
+ UnzipObj=Class
+  Exchange:TMemoryStream;
+  Constructor Create;
+  Destructor Free;
+  Procedure SolveInput(Sender:TObject;Var AStream:TStream);
+  Procedure SolveCreate(Sender:TObject;var AStream:TStream;AItem:TFullZipFileEntry);
+  Procedure SolveDone(Sender:TObject;var AStream:TStream;AItem:TFullZipFileEntry);
+  Function Extract(Data:Ansistring):TMemoryStream;
+  Function Extract(Data:TMemoryStream):TMemoryStream;
+ End;
+
+ Constructor UnzipObj.Create;Begin Exchange:=Nil End;
+ Destructor UnzipObj.Free;Begin Exchange:=Nil End;
+
+ Procedure UnzipObj.SolveInput(Sender:TObject;Var AStream:TStream);
+ Begin
+  AStream:=Exchange
+ End;
+
+ Procedure UnzipObj.SolveCreate(Sender:TObject;var AStream:TStream;AItem:TFullZipFileEntry);
+ Begin
+  AStream:=TMemoryStream.Create;
+ End;
+
+ Procedure UnzipObj.SolveDone(Sender:TObject;var AStream:TStream;AItem:TFullZipFileEntry);
+ Begin
+  AStream.Position:=0;
+  Exchange:=TMemoryStream.Create;
+  Exchange.LoadFromStream(AStream);
+  AStream.Free;
+ End;
+
+ Function UnzipObj.Extract(Data:Ansistring):TMemoryStream;
+ var uz:TUnZipper;
+ Begin
+  uz:=TUnZipper.Create;
+  uz.FileName:=Data;
+  uz.Entries.AddFileEntry(Data,'archieve');
+  uz.OnOpenInputStream:=@SolveInput;
+  uz.OnCreateStream:=@SolveCreate;
+  uz.OnDoneStream:=@SolveDone;
+  uz.UnZipAllFiles;
+  uz.Free;
+  Exit(Exchange)
+ End;
+
+ Function UnzipObj.Extract(Data:TMemoryStream):TMemoryStream;
+ Var uz:TUnZipper;
+ Begin
+  Exchange:=Data;
+  Data.Position:=0;
+  uz:=TUnZipper.Create;
+  uz.Entries.AddFileEntry(Data,'archieve');
+  uz.OnOpenInputStream:=@SolveInput;
+  uz.OnCreateStream:=@SolveCreate;
+  uz.OnDoneStream:=@SolveDone;
+  uz.UnZipAllFiles;
+  uz.Free;
+  Exit(Exchange)
+ End;
+
+Function UnzipFile(data:Ansistring):TMemoryStream;
+var tmp:UnzipObj;
+Begin
+ tmp:=UnzipObj.Create;
+ Result:=tmp.Extract(data);
+ tmp.Free;
+End;
+
+Function UnzipFile(data:TMemoryStream):TMemoryStream;
+var tmp:UnzipObj;
+Begin
+ tmp:=UnzipObj.Create;
+ Result:=tmp.Extract(data);
+ tmp.Free;
 End;
 
 Function sapkg_NewFile(_fname:Ansistring;_data:TMemoryStream):SAPackageObj;
