@@ -1,5 +1,6 @@
 {$M 100000000,0,100000000}
 {$MODE OBJFPC}{$H+}
+{$MODESWITCH ADVANCEDRECORDS}
 //{$OPTIMIZATION ON,REGVAR,FASTMATH,LOOPUNROLL,CSE,DFA}
 //{$R-,S-,Q-,I-,D-}
 unit SimpleAnimeUnit2;
@@ -148,6 +149,7 @@ type
  pBaseAnime=^BaseAnime;
  pGraph=^Graph;
  pSimpleAnime=^SimpleAnime;
+ pTimeLineAnime=^TimeLineAnime;
  pAnimeObj=^AnimeObj;
  pAnimeTag=^AnimeTag;
  pAnimeLog=^AnimeLog;
@@ -176,6 +178,13 @@ type
   procedure LoadGIF(const path:ansistring);
   procedure LoadSAG(const path:ansistring);
   procedure Load(const path:ansistring);
+  procedure LoadTGA(data:TMemoryStream);
+  procedure LoadBMP(data:TMemoryStream);
+  procedure LoadPNG(data:TMemoryStream);
+  procedure LoadJPG(data:TMemoryStream);
+  procedure LoadGIF(data:TMemoryStream);
+  procedure LoadSAG(data:TMemoryStream);
+  procedure Load(data:TMemoryStream);
   procedure SaveTGA(const path:ansistring);
   procedure SaveBMP(const path:ansistring);
   procedure SavePNG(const path:ansistring);
@@ -273,7 +282,7 @@ type
   Procedure SetTime(Const _t:Int64);Virtual;
   procedure Start;Virtual;
   procedure Start(const _t:Int64);Virtual;
-  Function Process:boolean;Virtual;Abstract;
+  Function AnimeEnd:Boolean;Virtual;Abstract;
   Function Apply(obj:pAnimeObj):Shortint;Virtual;Abstract;
   Function Reproduce:pBaseAnime;Virtual;Abstract;
  End;
@@ -290,7 +299,7 @@ type
   Function TotTime:Int64;
   Function AnimeType:ShortInt;
   Function Cut:AnimeTag;
-  Function Process:Boolean;
+  Function AnimeEnd:Boolean;
   Function Apply(obj:pAnimeObj):ShortInt;
  End;
 
@@ -317,7 +326,7 @@ type
   procedure SetRotate(_r:single);
   procedure SetAlpha(_a:single);
   procedure SetScale(_s:single);
-  function Process:boolean;Virtual;
+  Function AnimeEnd:Boolean;Virtual;
   Function Apply(obj:pAnimeObj):Shortint;Virtual;
   Function Reproduce:pBaseAnime;Virtual;
  end;
@@ -330,6 +339,7 @@ type
   Source:pBaseGraph;
   Constructor Create;
   Constructor Create(const a:BaseGraph);
+  Constructor CreateLink(Const a:BaseGraph);
   Destructor Free;
   Function Width:Longint;
   Function Height:Longint;
@@ -345,6 +355,30 @@ type
   function Inner(x,y:longint):boolean;
   Function Cut:AnimeObj;
  end;
+
+ TLAnimeObj=Packed Record
+  BiasX,BiasY,ClipX1,ClipY1,ClipX2,ClipY2,Rotate,Alpha,ScaleX,ScaleY:single;
+  tp_BiasX,tp_BiasY,tp_ClipX1,tp_ClipY1,tp_ClipX2,tp_ClipY2,tp_Rotate,tp_Alpha,tp_ScaleX,tp_ScaleY:ShortInt;
+  Time:Int64;
+  Class Operator <(Const a,b:TLAnimeObj)c:Boolean;
+  Class Operator >(Const a,b:TLAnimeObj)c:Boolean;
+  Class Operator =(Const a,b:TLAnimeObj)c:Boolean;
+  Class Operator <=(Const a,b:TLAnimeObj)c:Boolean;
+  Class Operator >=(Const a,b:TLAnimeObj)c:Boolean;
+  Procedure Create;
+ End;
+
+ TimeLineAnime=Packed Object(BaseAnime)
+  TimeLine:Specialize Treap<TLAnimeObj>;
+  Constructor Create;
+  Destructor Free;Virtual;
+  Procedure SetFrame(Const _tl:TLAnimeObj);
+  Procedure SetFrame(Const _t:Int64;Const _tl:AnimeObj);
+  Function AnimeEnd:Boolean;Virtual;
+  Function Apply(obj:pAnimeObj):Shortint;Virtual;
+  Function Reproduce:pBaseAnime;Virtual;
+ End;
+
 
  SAMouseEvent=Packed Record x,y,button:Longint; press,release:Boolean End;
  SAKeyEvent=Packed Record key:Longint; press,release,alt,shift,ctrl:Boolean End;
@@ -389,7 +423,7 @@ type
   function AddObj(const _role:BaseGraph):Longint;
   function LinkObj(const _role:Element):Longint;
 //function LinkObj(const _role:AnimeObj):longint;
-//function LinkObj(const _role:BaseGraph):Longint;
+  function LinkObj(const _role:BaseGraph):Longint;
   function AnimeEnd(id:longint):boolean;
   function AnimeAllEnd:boolean;
   function IsInner(id,x,y:longint):boolean;
@@ -1248,12 +1282,12 @@ begin
  Reset(HeaderGet,1);
  BlockRead(HeaderGet,Buf,16);
  Close(HeaderGet);
- If Copy(Buf,1,2)='BM'                           Then LoadBMP(Path) Else
- If LowerCase(Copy(Path,Length(Path)-2,3))='tga' Then LoadTGA(Path) Else
- If Copy(Buf,1,8)=#137#80#78#71#13#10#26#10      Then LoadPNG(Path) Else
- If Copy(Buf,1,2)=#255#216                       Then LoadJPG(Path) Else
- If Copy(Buf,1,3)='GIF'                          Then LoadGIF(Path) Else
- If LowerCase(Copy(Buf,1,10))='`imagedata'       Then LoadSAG(Path);
+ If Copy(Buf,1,2)='BM'                      Then LoadBMP(Path) Else
+ If Copy(Buf,1,8)=#137#80#78#71#13#10#26#10 Then LoadPNG(Path) Else
+ If Copy(Buf,1,2)=#255#216                  Then LoadJPG(Path) Else
+ If Copy(Buf,1,3)='GIF'                     Then LoadGIF(Path) Else
+ If LowerCase(Copy(Buf,1,10))='`imagedata'  Then LoadSAG(Path) Else
+ If (Buf[1]in[#0,#1])And(Buf[2]in[#2,#10])  Then LoadTGA(Path)
 end;
 
 procedure Graph.LoadTGA(const path:ansistring);
@@ -1329,6 +1363,7 @@ var
  i,j:Longint;
  procedure gets;begin with tmp do read(f,s[0],s[1],s[2],s[3]) end;
 begin
+ Create;
  Assign(F,path); Reset(F);
  Readln(F,s);
  if s<>'`imagedata' then begin Close(F); exit end;
@@ -1338,6 +1373,108 @@ begin
  for i:=1 to Height do
  for j:=1 to Width do begin gets; SetP(i,j,tmp.c) end;
  close(F)
+end;
+
+procedure Graph.Load(data:TMemoryStream);
+Var
+ HeaderGet:File;
+ Buf:Array[0..15]Of Char;
+begin
+ data.Position:=0;
+ data.Read(Buf,16);
+ If Copy(Buf,1,2)='BM'                      Then LoadBMP(data) Else
+ If Copy(Buf,1,8)=#137#80#78#71#13#10#26#10 Then LoadPNG(data) Else
+ If Copy(Buf,1,2)=#255#216                  Then LoadJPG(data) Else
+ If Copy(Buf,1,3)='GIF'                     Then LoadGIF(data) Else
+ If LowerCase(Copy(Buf,1,10))='`imagedata'  Then LoadSAG(data) Else
+ If (Buf[1]in[#0,#1])And(Buf[2]in[#2,#10])  Then LoadTGA(data)
+end;
+
+procedure Graph.LoadTGA(data:TMemoryStream);
+var
+ Img:TFPMemoryImage;
+ Reader:TFPCustomImageReader;
+begin
+ Img:=TFPMemoryImage.Create(0,0);
+ Reader:=TFPReaderTarga.Create;
+ data.Position:=0;
+ Img.LoadFromStream(data,Reader);
+ Create(Img);
+ Img.Free;
+ Reader.Free
+end;
+
+procedure Graph.LoadBMP(data:TMemoryStream);
+var
+ Img:TFPMemoryImage;
+ Reader:TFPCustomImageReader;
+begin
+ Img:=TFPMemoryImage.Create(0,0);
+ Reader:=TFPReaderBMP.Create;
+ data.Position:=0;
+ Img.LoadFromStream(data,Reader);
+ Create(Img);
+ Img.Free;
+ Reader.Free
+end;
+
+procedure Graph.LoadPNG(data:TMemoryStream);
+var
+ Img:TFPMemoryImage;
+ Reader:TFPCustomImageReader;
+begin
+ Img:=TFPMemoryImage.Create(0,0);
+ Reader:=TFPReaderPNG.Create;
+ data.Position:=0;
+ Img.LoadFromStream(data,Reader);
+ Create(Img);
+ Img.Free;
+ Reader.Free
+end;
+
+procedure Graph.LoadJPG(data:TMemoryStream);
+var
+ Img:TFPMemoryImage;
+ Reader:TFPCustomImageReader;
+begin
+ Img:=TFPMemoryImage.Create(0,0);
+ Reader:=TFPReaderJPEG.Create;
+ data.Position:=0;
+ Img.LoadFromStream(data,Reader);
+ Create(Img);
+ Img.Free;
+ Reader.Free
+end;
+
+procedure Graph.LoadGIF(data:TMemoryStream);
+var
+ Img:TFPMemoryImage;
+ Reader:TFPCustomImageReader;
+begin
+ Img:=TFPMemoryImage.Create(0,0);
+ Reader:=TFPReaderGIF.Create;
+ data.Position:=0;
+ Img.LoadFromStream(data,Reader);
+ Create(Img);
+ Img.Free;
+ Reader.Free
+end;
+
+procedure Graph.LoadSAG(data:TMemoryStream);
+var
+ buf:Array[0..11]Of Char;
+ tmp:FColor;
+ i,j:Longint;
+begin
+ Create;
+ data.Position:=0;
+ data.Read(Buf,12);
+ If buf<>'`imagedata'#13#10 Then Exit;
+ data.Read(tmp,4); j:=tmp.x;
+ data.Read(tmp,4); i:=tmp.x;
+ Create(i,j);
+ for i:=1 to Height do
+ for j:=1 to Width do begin data.Read(tmp,4); SetP(i,j,tmp.c) end;
 end;
 
 function Graph.toFPImage:TFPMemoryImage;
@@ -2344,7 +2481,6 @@ End;
 Function TextGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
 Var
  Tmp:Graph;
- Vir:AnimeTag;
  Acs:AnimeObj;
  oSize:Longint;
  oRotate:Single;
@@ -2352,12 +2488,7 @@ Var
  T,X,Y:Longint;
 Begin
  Acs:=Env^.Role;
- If Env^.Acts.Enable Then
- Begin
-  Vir:=Env^.Acts.Cut;
-  Vir.Process;
-  Vir.Apply(@Acs)
- End;
+ If Env^.Acts.Enable Then Env^.Acts.Apply(@Acs);
  oSize:=FontSize;
  oRotate:=FontAngle;
  oText:=Text;
@@ -2404,7 +2535,6 @@ end;
 
 Constructor AnimeObj.Create(const a:BaseGraph);
 begin
- Visible:=True;
  BiasX:=0;
  BiasY:=0;
  ClipX1:=0;
@@ -2416,6 +2546,22 @@ begin
  ScaleX:=1;
  ScaleY:=1;
  Source:=a.ReProduce;
+end;
+
+Constructor AnimeObj.CreateLink(const a:BaseGraph);
+begin
+ Visible:=True;
+ BiasX:=0;
+ BiasY:=0;
+ ClipX1:=0;
+ ClipY1:=0;
+ ClipX2:=1;
+ ClipY2:=1;
+ Rotate:=0;
+ Alpha:=1;
+ ScaleX:=1;
+ ScaleY:=1;
+ Source:=@a;
 end;
 
 Function AnimeObj.Width:Longint;
@@ -2601,12 +2747,6 @@ Begin
  Exit(Source^.AnimeType)
 End;
 
-FUnction AnimeTag.Process:Boolean;
-Begin
- If Source=Nil Then Exit(False);
- Exit(Source^.Process)
-End;
-
 Function AnimeTag.Apply(obj:pAnimeObj):SHortInt;
 Begin
  If Source=Nil Then Exit(0);
@@ -2619,6 +2759,11 @@ Begin
  Cut.Enable:=Enable;
  If Source=Nil Then Cut.Source:=Nil
                Else Cut.Source:=Source^.Reproduce;
+End;
+
+Function AnimeTag.AnimeEnd:Boolean;
+Begin
+ Exit(Source^.AnimeEnd)
 End;
 
 //Object-AnimeTag-End
@@ -2741,44 +2886,38 @@ end;
   end
  end;
 
-function SimpleAnime.Process:boolean;
-var
- Tim:Real;
-begin
- Process:=True;
- Tim:=(DeltaTime-StdTime)/TotTime;
- if Tim>=1 then
- case AnimeType of
-  atp_normal:begin Tim:=1; Process:=False end;
-  atp_loop  :Tim:=Tim-trunc(Tim)
- end;
- an_BiasX:=an_BiasX*tp_Count(Tim,tp_BiasX);
- an_BiasY:=an_BiasY*tp_Count(Tim,tp_BiasY);
- an_ClipX1:=an_ClipX1*tp_Count(Tim,tp_ClipX1);
- an_ClipY1:=an_ClipY1*tp_Count(Tim,tp_ClipY1);
- an_ClipX2:=an_ClipX2*tp_Count(Tim,tp_ClipX2);
- an_ClipY2:=an_ClipY2*tp_Count(Tim,tp_ClipY2);
- an_Rotate:=an_Rotate*tp_Count(Tim,tp_Rotate);
- an_Alpha :=an_Alpha *tp_Count(Tim,tp_Alpha );
- an_ScaleX:=an_ScaleX*tp_Count(Tim,tp_ScaleX);
- an_ScaleY:=an_ScaleY*tp_Count(Tim,tp_ScaleY);
-end;
+
+Function SimpleAnime.AnimeEnd:Boolean;
+Begin
+ Case AnimeType Of
+  atp_normal:Exit(DeltaTime-StdTime>=TotTime);
+  atp_loop  :Exit(False)
+ End;
+ Exit(True)
+End;
 
 Function SimpleAnime.Apply(obj:pAnimeObj):ShortInt;
+Var Tim:Real;
 begin
  If obj<>Nil Then
  with obj^ do
  begin
-  BiasX:=BiasX+an_BiasX;
-  BiasY:=BiasY+an_BiasY;
-  ClipX1:=ClipX1+an_ClipX1;
-  ClipX2:=ClipX2+an_ClipX2;
-  ClipY1:=ClipY1+an_ClipY1;
-  ClipY2:=ClipY2+an_ClipY2;
-  Rotate:=Rotate+an_Rotate;
-  Alpha :=Alpha +an_Alpha;
-  ScaleX:=ScaleX+an_ScaleX;
-  ScaleY:=ScaleY+an_ScaleY
+  Tim:=(DeltaTime-StdTime)/TotTime;
+  If Tim>=1 Then
+  Case AnimeType Of
+   atp_normal:Tim:=1;
+   atp_loop  :Tim:=Tim-Trunc(Tim)
+  End;
+  BiasX:=BiasX+an_BiasX*tp_Count(Tim,tp_BiasX);
+  BiasY:=BiasY+an_BiasY*tp_Count(Tim,tp_BiasY);
+  ClipX1:=ClipX1+an_ClipX1*tp_Count(Tim,tp_ClipX1);
+  ClipY1:=ClipY1+an_ClipY1*tp_Count(Tim,tp_ClipY1);
+  ClipX2:=ClipX2+an_ClipX2*tp_Count(Tim,tp_ClipX2);
+  ClipY2:=ClipY2+an_ClipY2*tp_Count(Tim,tp_ClipY2);
+  Rotate:=Rotate+an_Rotate*tp_Count(Tim,tp_Rotate);
+  Alpha :=Alpha+an_Alpha *tp_Count(Tim,tp_Alpha );
+  ScaleX:=ScaleX+an_ScaleX*tp_Count(Tim,tp_ScaleX);
+  ScaleY:=ScaleY+an_ScaleY*tp_Count(Tim,tp_ScaleY)
  end;
  Exit(11) //11=SimpleAnime
 end;
@@ -2792,6 +2931,140 @@ Begin
 End;
 
 //Object-SimpleAnime-End
+
+ Class Operator TLAnimeObj.<(Const a,b:TLAnimeObj)c:Boolean;Begin Exit(a.Time<b.Time) End;
+ Class Operator TLAnimeObj.>(Const a,b:TLAnimeObj)c:Boolean;Begin Exit(a.Time>b.Time) End;
+ Class Operator TLAnimeObj.=(Const a,b:TLAnimeObj)c:Boolean;Begin Exit(a.Time=b.Time) End;
+ Class Operator TLAnimeObj.<=(Const a,b:TLAnimeObj)c:Boolean;Begin Exit(a.Time<=b.Time) End;
+ Class Operator TLAnimeObj.>=(Const a,b:TLAnimeObj)c:Boolean;Begin Exit(a.Time>=b.Time) End;
+
+ Procedure TLAnimeObj.Create;
+ Begin
+  Time:=0;
+  BiasX:=0;  tp_BiasX:=tp_Line;
+  BiasY:=0;  tp_BiasY:=tp_Line;
+  ClipX1:=0; tp_ClipX1:=tp_Line;
+  ClipY1:=0; tp_ClipY1:=tp_Line;
+  ClipX2:=1; tp_ClipX2:=tp_Line;
+  ClipY2:=1; tp_ClipY2:=tp_Line;
+  Rotate:=0; tp_Rotate:=tp_Line;
+  Alpha :=1; tp_Alpha :=tp_Line;
+  ScaleX:=1; tp_ScaleX:=tp_Line;
+  ScaleY:=1; tp_ScaleY:=tp_Line;
+ End;
+
+//Object-TimeLineAnime-Begin
+
+Constructor TimeLineAnime.Create;
+Begin
+ TimeLine.Clear;
+ AnimeType:=atp_normal;
+ StdTime:=DeltaTime;
+ TotTime:=1000;
+End;
+
+Destructor TimeLineAnime.Free;
+Begin
+ TimeLine.Clear;
+End;
+
+Function TimeLineAnime.AnimeEnd:Boolean;
+Begin
+ Case AnimeType Of
+  atp_normal:Exit(DeltaTime-StdTime>=TotTime);
+  atp_loop  :Exit(False)
+ End;
+ Exit(True)
+End;
+
+Procedure TimeLineAnime.SetFrame(Const _tl:TLAnimeObj);
+Begin
+ If _tl.Time>TotTime Then TotTime:=_tl.Time;
+ TimeLine.Delete(_tl);
+ TimeLine.Insert(_tl)
+End;
+
+Procedure TimeLineAnime.SetFrame(Const _t:Int64;Const _tl:AnimeObj);
+Var tmp:TLAnimeObj;
+Begin
+ With Tmp Do Begin
+  Time:=_t;
+  BiasX:=_tl.BiasX;    tp_BiasX:=tp_Line;
+  BiasY:=_tl.BiasY;    tp_BiasY:=tp_Line;
+  ClipX1:=_tl.ClipX1;  tp_ClipX1:=tp_Line;
+  ClipY1:=_tl.ClipY1;  tp_ClipY1:=tp_Line;
+  ClipX2:=_tl.ClipX2;  tp_ClipX2:=tp_Line;
+  ClipY2:=_tl.ClipY2;  tp_ClipY2:=tp_Line;
+  Rotate:=_tl.Rotate;  tp_Rotate:=tp_Line;
+  Alpha :=_tl.Alpha;   tp_Alpha :=tp_Line;
+  ScaleX:=_tl.ScaleX;  tp_ScaleX:=tp_Line;
+  ScaleY:=_tl.ScaleY;  tp_ScaleY:=tp_Line;
+ End;
+ SetFrame(tmp)
+End;
+
+Function TimeLineAnime.Apply(obj:pAnimeObj):ShortInt;
+Var
+ Id:Longint;
+ tmp1,tmp2:TLAnimeObj;
+ Tim:Real;
+
+ Function Mix(Const vBegin,vEnd,vTime:Real;vStyle:ShortInt):Real;
+ Var tmp:Real;
+ Begin
+  tmp:=tp_Count(vTime,vStyle);
+  Exit(vBegin*(1-tmp)+vEnd*tmp)
+ End;
+
+Begin
+ If obj=Nil Then Exit;
+ Tim:=(DeltaTime-StdTime)/TotTime;
+ If Tim>=1 Then
+ Case AnimeType Of
+  atp_normal:Tim:=1;
+  atp_loop  :Tim:=Tim-Trunc(Tim);
+ End;
+ tmp1.Time:=Round(Tim*TotTime);
+ Id:=TimeLine.LowerEqual(tmp1);
+ If Id>TimeLine.Size Then tmp1:=TimeLine[TimeLine.Size] Else tmp1:=TimeLine[Id];
+ If Id+1>TimeLine.Size Then tmp2:=TimeLine[TimeLine.Size] Else tmp2:=TimeLine[Id+1];
+ If Id=0 Then Begin Fillchar(tmp1,Sizeof(tmp1),0); FillChar(tmp2,Sizeof(tmp2),0) End;
+ If tmp2.Time-tmp1.Time=0 Then Tim:=1 Else Tim:=(Round(Tim*TotTime)-tmp1.Time)/(tmp2.Time-tmp1.Time);
+ With Obj^ Do Begin
+  BiasX:=Mix(tmp1.BiasX,tmp2.BiasX,Tim,tmp1.tp_BiasX);
+  BiasY:=Mix(tmp1.BiasY,tmp2.BiasY,Tim,tmp1.tp_BiasY);
+  ClipX1:=Mix(tmp1.ClipX1,tmp2.ClipX1,Tim,tmp1.tp_ClipX1);
+  ClipY1:=Mix(tmp1.ClipY1,tmp2.ClipY1,Tim,tmp1.tp_ClipY1);
+  ClipX2:=Mix(tmp1.ClipX2,tmp2.ClipX2,Tim,tmp1.tp_ClipX2);
+  ClipY2:=Mix(tmp1.ClipY2,tmp2.ClipY2,Tim,tmp1.tp_ClipY2);
+  Rotate:=Mix(tmp1.Rotate,tmp2.Rotate,Tim,tmp1.tp_Rotate);
+  Alpha :=Mix(tmp1.Alpha ,tmp2.Alpha ,Tim,tmp1.tp_Alpha );
+  ScaleX:=Mix(tmp1.ScaleX,tmp2.ScaleX,Tim,tmp1.tp_ScaleX);
+  ScaleY:=Mix(tmp1.ScaleY,tmp2.ScaleY,Tim,tmp1.tp_ScaleY);
+ End;
+ Exit(12) //12=TimeLineAnime
+End;
+
+Function TimeLineAnime.Reproduce:pBaseAnime;
+Var tmp:pTimeLineAnime;
+Begin
+ New(tmp,Create);
+ Tmp^.AnimeType:=AnimeType;
+ Tmp^.StdTime:=StdTime;
+ Tmp^.TotTime:=TotTime;
+ With Tmp^.TimeLine Do Begin
+  Clear;
+  Root:=TimeLine.Root;
+  Size:=TimeLine.Size;
+  Thing:=TimeLine.Thing.Clone(1,TimeLine.Thing.Size);
+  ReUse:=TimeLine.ReUse.Clone(1,TimeLine.ReUse.Size);
+ End;
+ Exit(tmp)
+End;
+
+
+
+//Object-TimeLineAnime-End
 
 //Object-AnimeLog-Begin
 
@@ -2813,8 +3086,7 @@ var
 begin
  if MouseEvent=nil then exit;
  tmpobj:=Env^.Role;
- If Env^.Acts.Enable Then
- Begin tmptag:=Env^.Acts.Cut; tmptag.Process; tmptag.Apply(@tmpobj); tmptag.Free End;
+ If Env^.Acts.Enable Then Env^.Acts.Apply(@tmpobj);
  _inner:=ord(tmpobj.inner(y,x)); if _inner<>LastInner then _inner:=_inner or 2;
  tmp.x:=y; tmp.y:=x; tmp.button:=button; tmp.press:=press; tmp.release:=release;
  MouseEvent(Env,Below,Tmp,_inner);
@@ -3037,6 +3309,17 @@ begin
  Exit(Member.Size)
 end;
 
+Function Stage.LinkObj(Const _role:BaseGraph):Longint;
+Var Tmp:pElement;
+Begin
+ New(Tmp,Create);
+ Tmp^.Role.CreateLink(_role);
+ Tmp^.Acts:=NULLAnimeTag;
+ Tmp^.Talk:=NULLAnimeLog;
+ Member.PushBack(Tmp);
+ Exit(Member.Size)
+End;
+
 Procedure Stage.AnimeBegin(id:Longint);
 Begin
  With Member.Items[Id]^.Acts Do
@@ -3072,7 +3355,6 @@ var
 begin
  tmpobj:=Member.Items[id]^.Role;
  tmptag:=Member.Items[id]^.Acts;
- tmptag.Process;
  tmptag.Apply(@tmpobj);
  IsInner:=tmpobj.inner(x,y);
 end;
@@ -3119,7 +3401,6 @@ procedure Stage.StopAnime(id:longint);
 begin
  with Member.Items[id]^ do
  begin
-  Acts.Process;
   Acts.Apply(@Role);
   Acts.Off
  end
@@ -3222,7 +3503,6 @@ procedure Stage.DisplayBlendObj(id:longint;tp:shortint;Var Below:Graph);
 var
  tmp:AnimeObj;
  vir:AnimeTag;
- AnimeFlag:boolean;
  DTest:pGraph;
  DrawObj,DrawTmp:Graph;
 begin
@@ -3231,11 +3511,10 @@ begin
   tmp:=Role
  else
   begin
-   Vir:=Acts.Cut;
-   AnimeFlag:=Vir.Process;
+   Vir:=Acts;
    Tmp:=Role;
    Vir.Apply(@Tmp);
-   if not AnimeFlag then
+   if Vir.AnimeEnd then
    begin
     Acts.Off;
     Role:=Tmp
@@ -3266,7 +3545,6 @@ Procedure Stage.DisplayDirectObj(id:Longint;var Below:Graph);
 var
  tmp:AnimeObj;
  vir:AnimeTag;
- AnimeFlag:boolean;
  DTest:pGraph;
 begin
  with Member.Items[id]^ do
@@ -3274,11 +3552,10 @@ begin
   tmp:=Role
  else
   begin
-   Vir:=Acts.Cut;
-   AnimeFlag:=Vir.Process;
+   Vir:=Acts;
    Tmp:=Role;
    Vir.Apply(@Tmp);
-   if not AnimeFlag then
+   if Vir.AnimeEnd then
    begin
     Acts.Off;
     Role:=Tmp

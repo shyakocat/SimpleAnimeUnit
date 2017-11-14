@@ -1,6 +1,28 @@
 {$MODE OBJFPC}{$H+}
+{$MODESWITCH ADVANCEDRECORDS}
 unit CommonTypeUnit;
 interface
+
+//Common Record
+
+Type
+
+ Rana=Record
+  x,y:Longint;
+  Class Operator <(Const a,b:Rana)c:Boolean;
+  Class Operator =(Const a,b:Rana)c:Boolean;
+  Class Operator >(Const a,b:Rana)c:Boolean;
+  Class Operator <=(Const a,b:Rana)c:Boolean;
+  Class Operator >=(Const a,b:Rana)c:Boolean;
+  Class Operator +(Const a,b:Rana)c:Rana;
+  Class Operator -(Const a,b:Rana)c:Rana;
+ End;
+
+
+Const
+ cmp_Less=1;
+ cmp_Greater=2;
+
 //Common Type
 type
 
@@ -28,7 +50,47 @@ type
   procedure SetValue(i:Longint;const Value:T);
   property Arr[i:Longint]:T read GetValue write SetValue;default;
  end;
+ IList=Specialize List<Longint>;
  SList=specialize List<ansistring>;
+
+ Generic ListTab<T>=Object(Specialize List<T>)
+  Function Cmp(Const a,b:T;_c:ShortInt):Boolean;
+  Procedure Sort(L,R:Longint);
+  Procedure Sort(L,R:Longint;_c:ShortInt);
+  Function Find(Const value:T):Longint;
+ End;
+
+ Generic Treap<T>=Object
+  Type
+   TreapObj=Record Va:T; Ls,Rs,Rd,Ct:Longint End;
+   TList=Specialize List<TreapObj>;
+  Var
+   Root,Size:Longint;
+   Thing:TList;
+   ReUse:IList;
+  Protected
+   Function NewTreapObj(Const _v:T;_l,_r,_x,_c:Longint):TreapObj;
+   Procedure PushUp(k:Longint);
+   Procedure RRotate(Var k:Longint);
+   Procedure LRotate(Var k:Longint);
+   Function Insert(k:Longint;Const _v:T):Longint;
+   Function Delete(k:Longint;Const _v:T):Longint;
+  Public
+   Procedure Clear;
+   Procedure Insert(Const _v:T);
+   Procedure Delete(Const _v:T);
+   Function Lower(Const _v:T):Longint;
+   Function Upper(Const _v:T):Longint;
+   Function LowerEqual(Const _v:T):Longint;
+   Function UpperEqual(Const _V:T):Longint;
+   Function LowerValue(Const _v:T):T;
+   Function UpperValue(Const _v:T):T;
+   Function LowerEqualValue(Const _v:T):T;
+   Function UpperEqualValue(Const _V:T):T;
+   Function GetRank(Const _v:T):Longint;
+   Function AskRank(_r:Longint):T;
+   Property Rank[_r:Longint]:T read AskRank;Default;
+ End;
 
  Generic Queue<T>=Object
   Type
@@ -78,6 +140,16 @@ Type
 
 
 implementation
+
+ Class Operator Rana.<(Const a,b:Rana)c:Boolean;Begin Exit(a.x<b.x) End;
+ Class Operator Rana.>(Const a,b:Rana)c:Boolean;Begin Exit(a.x>b.x) End;
+ Class Operator Rana.=(Const a,b:Rana)c:Boolean;Begin Exit(a.x=b.x) End;
+ Class Operator Rana.<=(Const a,b:Rana)c:Boolean;Begin Exit(a.x<=b.x) End;
+ Class Operator Rana.>=(Const a,b:Rana)c:Boolean;Begin Exit(a.x>=b.x) End;
+ Class Operator Rana.+(Const a,b:Rana)c:Rana;Begin c.x:=a.x+b.x; c.y:=a.y+b.y End;
+ Class Operator Rana.-(Const a,b:Rana)c:Rana;Begin c.x:=a.x-b.x; c.y:=a.y-b.y End;
+
+
 
 //GenericObject-List-Begin
 
@@ -178,6 +250,54 @@ function List.isnil:boolean;
  end;
 
 //GenericObject-List-End
+
+
+ Function ListTab.Find(Const value:T):Longint;
+ Var i:Longint;
+ Begin
+  For i:=1 to Size Do If Items[i]=Value Then Exit(i);
+  Exit(0)
+ End;
+
+ Procedure ListTab.Sort(L,R:Longint);
+ Var i,j:Longint; tmp:T;
+ Begin
+  If (L<1)Or(R>Size) Then Exit;
+  If L>R Then Exit;
+  i:=L; j:=R;
+  tmp:=Items[L+Random(R-L+1)];
+  Repeat
+   While Items[i]<tmp Do Inc(I);
+   While tmp<Items[j] Do Dec(J);
+   If Items[j]<Items[i] Then Begin Swap(Items[i],Items[j]); Inc(I); Dec(J) End
+  Until I>J;
+  If I<R Then Sort(I,R);
+  If L<J Then Sort(L,J)
+ End;
+
+ Function ListTab.Cmp(Const a,b:T;_c:ShortInt):Boolean;
+ Begin
+  Case _c Of
+   cmp_Less:Exit(a<b);
+   cmp_Greater:Exit(a>b)
+  End
+ End;
+
+ Procedure ListTab.Sort(L,R:Longint;_c:ShortInt);
+ Var i,j:Longint; tmp:T;
+ Begin
+  If (L<1)Or(R>Size) Then Exit;
+  If L>R Then Exit;
+  i:=L; j:=R;
+  tmp:=Items[L+Random(R-L+1)];
+  Repeat
+   While Cmp(Items[i],tmp,_c) Do Inc(I);
+   While Cmp(tmp,Items[j],_c) Do Dec(J);
+   If Cmp(Items[j],Items[i],_c) Then Begin Swap(Items[i],Items[j]); Inc(i); Dec(J) End
+  Until I>J;
+  If I<R Then Sort(I,R);
+  If L<J Then Sort(L,J)
+ End;
 
 
  Procedure Queue.Create;
@@ -450,5 +570,262 @@ Begin
  tmpL.Free;
  tmpR.Free;
 End;
+
+
+ Procedure Treap.Clear;
+ Begin
+  Root:=0;
+  Size:=0;
+  Thing.Clear;
+  ReUse.Clear;
+ End;
+
+ Procedure Treap.Pushup(k:Longint);
+ Begin
+  Thing.Items[k].Ct:=Thing[Thing[k].Ls].Ct+Thing[Thing[k].Rs].Ct+1
+ End;
+
+ Procedure Treap.RRotate(Var k:Longint);
+ Var z:Longint;
+ Begin
+  z:=Thing[k].Ls;
+  Thing.Items[k].Ls:=Thing[z].Rs;
+  Thing.Items[z].Rs:=k;
+  k:=z
+ End;
+
+ Procedure Treap.LRotate(Var k:Longint);
+ Var z:Longint;
+ Begin
+  z:=Thing[k].Rs;
+  Thing.Items[k].Rs:=Thing[z].Ls;
+  Thing.Items[z].Ls:=k;
+  k:=z
+ End;
+
+ Function Treap.NewTreapObj(Const _v:T;_l,_r,_x,_c:Longint):TreapObj;
+ Begin
+  With Result Do Begin
+   Va:=_v;
+   Ls:=_l;
+   Rs:=_r;
+   Rd:=_x;
+   Ct:=_c
+  End
+ End;
+
+ Function Treap.Insert(k:Longint;Const _v:T):Longint;
+ Var tmp:Longint;
+ Begin
+  If k=0 Then Begin
+   Inc(Size);
+   If ReUse.Size=0 Then
+   Begin
+    Thing.PushBack(NewTreapObj(_v,0,0,Random(MaxLongint),1));
+    k:=Thing.Size
+   End
+   Else
+   Begin
+    k:=ReUse.Top;
+    ReUse.Pop;
+    Thing.Items[k]:=NewTreapObj(_v,0,0,Random(MaxLongint),1);
+   End;
+   Exit(k)
+  End;
+  If _v<Thing[k].Va Then Begin
+   tmp:=Insert(Thing[k].Ls,_v);
+   Thing.Items[k].Ls:=tmp;
+   If Thing[tmp].Rd<Thing[k].Rd Then RRotate(K)
+  End Else Begin
+   tmp:=Insert(Thing[k].Rs,_v);
+   Thing.Items[k].Rs:=tmp;
+   If Thing[tmp].Rd<Thing[k].Rd Then LRotate(K)
+  End;
+  PushUp(k);
+  Exit(k)
+ End;
+
+ Function Treap.Delete(k:Longint;Const _v:T):Longint;
+ Begin
+  If k=0 Then Exit(0);
+  If _v=Thing[k].Va Then Begin
+   If (Thing[k].Ls=0)Or(Thing[k].Rs=0) Then Begin
+    Dec(Size);
+    ReUse.PushBack(k);
+    Exit(Thing[k].Ls Or Thing[k].Rs)
+   End;
+   If Thing[Thing[k].Ls].Rd<Thing[Thing[k].Rs].Rd Then
+    Begin
+     RRotate(K);
+     Thing.Items[k].Rs:=Delete(Thing[k].Rs,_v)
+    End
+   Else
+    Begin
+     LRotate(K);
+     Thing.Items[k].Ls:=Delete(Thing[k].Ls,_v)
+    End
+  End Else
+  If _v<Thing[k].Va Then Thing.Items[k].Ls:=Delete(Thing[k].Ls,_v)
+                    Else Thing.Items[k].Rs:=Delete(Thing[k].Rs,_v);
+  PushUp(k);
+  Exit(k)
+ End;
+
+ Procedure Treap.Insert(Const _v:T);
+ Begin
+  Root:=Insert(Root,_v);
+ End;
+
+ Procedure Treap.Delete(Const _v:T);
+ Begin
+  Root:=Delete(Root,_v)
+ End;
+
+ Function Treap.Lower(Const _v:T):Longint;
+ Var k,z:Longint;
+ Begin
+  Result:=0;
+  k:=Root;
+  z:=0;
+  While k<>0 Do
+   If Thing[k].Va<_v Then Begin
+    Inc(z,Thing[Thing[k].Ls].Ct+1);
+    Result:=z;
+    k:=Thing[k].Rs
+   End
+   Else
+    k:=Thing[k].Ls
+ End;
+
+ Function Treap.Upper(Const _v:T):Longint;
+ Var k,z:Longint;
+ Begin
+  Result:=0;
+  k:=Root;
+  z:=0;
+  While k<>0 Do
+   If Thing[k].Va>_v Then Begin
+    Inc(z,Thing[Thing[k].Ls].Ct+1);
+    Result:=z;
+    k:=Thing[k].Ls
+   End
+   Else
+    k:=Thing[k].Rs
+ End;
+
+ Function Treap.LowerEqual(Const _v:T):Longint;
+ Var k,z:Longint;
+ Begin
+  Result:=0;
+  k:=Root;
+  z:=0;
+  While k<>0 Do
+   If Thing[k].Va<=_v Then Begin
+    Inc(z,Thing[Thing[k].Ls].Ct+1);
+    Result:=z;
+    k:=Thing[k].Rs
+   End
+   Else
+    k:=Thing[k].Ls
+ End;
+
+ Function Treap.UpperEqual(Const _V:T):Longint;
+ Var k,z:Longint;
+ Begin
+  Result:=0;
+  k:=Root;
+  z:=0;
+  While k<>0 Do
+   If Thing[k].Va>=_v Then Begin
+    Inc(z,Thing[Thing[k].Ls].Ct+1);
+    Result:=z;
+    k:=Thing[k].Rs
+   End
+   Else
+    k:=Thing[k].Ls
+ End;
+
+ Function Treap.LowerValue(Const _v:T):T;
+ Var k:Longint;
+ Begin
+  k:=Root;
+  While k<>0 Do
+   If Thing[k].Va<_v Then Begin
+    Result:=Thing[k].Va;
+    k:=Thing[k].Rs
+   End
+   Else
+    k:=Thing[k].Ls
+ End;
+
+ Function Treap.UpperValue(Const _v:T):T;
+ Var k:Longint;
+ Begin
+  k:=Root;
+  While k<>0 Do
+   If Thing[k].Va>_v Then Begin
+    Result:=Thing[k].Va;
+    k:=Thing[k].Ls
+   End
+   Else
+    k:=Thing[k].Rs
+ End;
+
+ Function Treap.LowerEqualValue(Const _v:T):T;
+ Var k:Longint;
+ Begin
+  k:=Root;
+  While k<>0 Do
+   If Thing[k].Va<=_v Then Begin
+    Result:=Thing[k].Va;
+    k:=Thing[k].Rs
+   End
+   Else
+    k:=Thing[k].Ls
+ End;
+
+ Function Treap.UpperEqualValue(Const _V:T):T;
+ Var k:Longint;
+ Begin
+  k:=Root;
+  While k<>0 Do
+   If Thing[k].Va>=_v Then Begin
+    Result:=Thing[k].Va;
+    k:=Thing[k].Rs
+   End
+   Else
+    k:=Thing[k].Ls
+ End;
+
+ Function Treap.GetRank(Const _v:T):Longint;
+ Var k,z:Longint;
+ Begin
+  Result:=0;
+  k:=Root;
+  z:=0;
+  While k<>0 Do Begin
+   If Thing[k].Va=_v Then Result:=Thing[Thing[k].Ls].Ct+1+z;
+   If Thing[k].Va<_v Then Begin
+    Inc(z,Thing[Thing[k].Ls].Ct+1);
+    k:=Thing[k].Rs
+   End
+   Else
+    k:=Thing[k].Ls
+  End
+ End;
+
+ Function Treap.AskRank(_r:Longint):T;
+ Var k,z:Longint;
+ Begin
+  If _r>Size Then Exit;
+  k:=Root;
+  While k<>0 Do Begin
+   z:=Thing[Thing[k].Ls].Ct+1;
+   If _r=z Then Exit(Thing[k].Va);
+   If _r<z Then Begin k:=Thing[k].Ls; Continue End;
+   Dec(_r,z); k:=Thing[k].Rs
+  End
+ End;
+
 
 end.
