@@ -1,4 +1,4 @@
-{$M 100000000,0,100000000}
+﻿{$M 100000000,0,100000000}
 {$MODE OBJFPC}{$H+}
 {$MODESWITCH ADVANCEDRECORDS}
 //{$OPTIMIZATION ON,REGVAR,FASTMATH,LOOPUNROLL,CSE,DFA}
@@ -366,6 +366,17 @@ type
   Class Operator <=(Const a,b:TLAnimeObj)c:Boolean;
   Class Operator >=(Const a,b:TLAnimeObj)c:Boolean;
   Procedure Create;
+  Procedure SetTime(Const _t:Int64);
+  Procedure SetBiasX(Const _v:Single;_tp:ShortInt);
+  Procedure SetBiasY(Const _v:Single;_tp:ShortInt);
+  Procedure SetClipX1(Const _v:Single;_tp:ShortInt);
+  Procedure SetClipY1(Const _v:Single;_tp:ShortInt);
+  Procedure SetClipX2(Const _v:Single;_tp:ShortInt);
+  Procedure SetClipY2(Const _v:Single;_tp:ShortInt);
+  Procedure SetRotate(Const _v:Single;_tp:ShortInt);
+  Procedure SetAlpha (Const _v:Single;_tp:ShortInt);
+  Procedure SetScaleX(Const _v:Single;_tp:ShortInt);
+  Procedure SetScaleY(Const _v:Single;_tp:ShortInt);
  End;
 
  TimeLineAnime=Packed Object(BaseAnime)
@@ -417,6 +428,7 @@ type
   Member:Specialize List<pElement>;
   constructor Create;
   destructor Free;
+  Destructor FreeData;
   function Size:longint;
   function AddObj(const _role:Element):Longint;
   function AddObj(const _role:AnimeObj):longint;
@@ -2535,6 +2547,7 @@ end;
 
 Constructor AnimeObj.Create(const a:BaseGraph);
 begin
+ Visible:=True;
  BiasX:=0;
  BiasY:=0;
  ClipX1:=0;
@@ -2953,6 +2966,18 @@ End;
   ScaleY:=1; tp_ScaleY:=tp_Line;
  End;
 
+ Procedure TLAnimeObj.SetTime(Const _t:Int64);Begin Time:=_t End;
+ Procedure TLAnimeObj.SetBiasX(Const _v:Single;_tp:ShortInt);Begin BiasX:=_v; tp_BiasX:=_tp End;
+ Procedure TLAnimeObj.SetBiasY(Const _v:Single;_tp:ShortInt);Begin BiasY:=_v; tp_BiasY:=_tp End;
+ Procedure TLAnimeObj.SetClipX1(Const _v:Single;_tp:ShortInt);Begin ClipX1:=_v; tp_ClipX1:=_tp End;
+ Procedure TLAnimeObj.SetClipY1(Const _v:Single;_tp:ShortInt);Begin ClipY1:=_v; tp_ClipY1:=_tp End;
+ Procedure TLAnimeObj.SetClipX2(Const _v:Single;_tp:ShortInt);Begin ClipX2:=_v; tp_ClipX2:=_tp End;
+ Procedure TLAnimeObj.SetClipY2(Const _v:Single;_tp:ShortInt);Begin ClipY2:=_v; tp_ClipY2:=_tp End;
+ Procedure TLAnimeObj.SetRotate(Const _v:Single;_tp:ShortInt);Begin Rotate:=_v; tp_Rotate:=_tp End;
+ Procedure TLAnimeObj.SetAlpha (Const _v:Single;_tp:ShortInt);Begin Alpha :=_v; tp_Alpha :=_tp End;
+ Procedure TLAnimeObj.SetScaleX(Const _v:Single;_tp:ShortInt);Begin ScaleX:=_v; tp_ScaleX:=_tp End;
+ Procedure TLAnimeObj.SetScaleY(Const _v:Single;_tp:ShortInt);Begin ScaleY:=_v; tp_ScaleY:=_tp End;
+
 //Object-TimeLineAnime-Begin
 
 Constructor TimeLineAnime.Create;
@@ -3031,16 +3056,16 @@ Begin
  If Id=0 Then Begin Fillchar(tmp1,Sizeof(tmp1),0); FillChar(tmp2,Sizeof(tmp2),0) End;
  If tmp2.Time-tmp1.Time=0 Then Tim:=1 Else Tim:=(Round(Tim*TotTime)-tmp1.Time)/(tmp2.Time-tmp1.Time);
  With Obj^ Do Begin
-  BiasX:=Mix(tmp1.BiasX,tmp2.BiasX,Tim,tmp1.tp_BiasX);
-  BiasY:=Mix(tmp1.BiasY,tmp2.BiasY,Tim,tmp1.tp_BiasY);
-  ClipX1:=Mix(tmp1.ClipX1,tmp2.ClipX1,Tim,tmp1.tp_ClipX1);
-  ClipY1:=Mix(tmp1.ClipY1,tmp2.ClipY1,Tim,tmp1.tp_ClipY1);
-  ClipX2:=Mix(tmp1.ClipX2,tmp2.ClipX2,Tim,tmp1.tp_ClipX2);
-  ClipY2:=Mix(tmp1.ClipY2,tmp2.ClipY2,Tim,tmp1.tp_ClipY2);
-  Rotate:=Mix(tmp1.Rotate,tmp2.Rotate,Tim,tmp1.tp_Rotate);
-  Alpha :=Mix(tmp1.Alpha ,tmp2.Alpha ,Tim,tmp1.tp_Alpha );
-  ScaleX:=Mix(tmp1.ScaleX,tmp2.ScaleX,Tim,tmp1.tp_ScaleX);
-  ScaleY:=Mix(tmp1.ScaleY,tmp2.ScaleY,Tim,tmp1.tp_ScaleY);
+  BiasX:=Mix(tmp1.BiasX,tmp2.BiasX,Tim,tmp2.tp_BiasX);
+  BiasY:=Mix(tmp1.BiasY,tmp2.BiasY,Tim,tmp2.tp_BiasY);
+  ClipX1:=Mix(tmp1.ClipX1,tmp2.ClipX1,Tim,tmp2.tp_ClipX1);
+  ClipY1:=Mix(tmp1.ClipY1,tmp2.ClipY1,Tim,tmp2.tp_ClipY1);
+  ClipX2:=Mix(tmp1.ClipX2,tmp2.ClipX2,Tim,tmp2.tp_ClipX2);
+  ClipY2:=Mix(tmp1.ClipY2,tmp2.ClipY2,Tim,tmp2.tp_ClipY2);
+  Rotate:=Mix(tmp1.Rotate,tmp2.Rotate,Tim,tmp2.tp_Rotate);
+  Alpha :=Mix(tmp1.Alpha ,tmp2.Alpha ,Tim,tmp2.tp_Alpha );
+  ScaleX:=Mix(tmp1.ScaleX,tmp2.ScaleX,Tim,tmp2.tp_ScaleX);
+  ScaleY:=Mix(tmp1.ScaleY,tmp2.ScaleY,Tim,tmp2.tp_ScaleY);
  End;
  Exit(12) //12=TimeLineAnime
 End;
@@ -3372,7 +3397,6 @@ end;
 
 procedure Stage.ReplaceObj(id:longint;const _role:AnimeObj);
 begin
- Member.Items[id]^.Free;
  with Member.Items[id]^ do
  Begin
   Create;
@@ -3760,7 +3784,12 @@ Begin
  Communication(@Screen,L)
 End;
 
-destructor Stage.Free;
+Destructor Stage.Free;
+Begin
+ Member.Clear
+End;
+
+destructor Stage.FreeData;
 var i:longint;
 begin
  for i:=1 to Size do Member.Items[i]^.Role.Source^.Free;
