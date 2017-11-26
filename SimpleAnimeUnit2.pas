@@ -1,4 +1,4 @@
-﻿{$M 100000000,0,100000000}
+{$M 100000000,0,100000000}
 {$MODE OBJFPC}{$H+}
 {$MODESWITCH ADVANCEDRECORDS}
 //{$OPTIMIZATION ON,REGVAR,FASTMATH,LOOPUNROLL,CSE,DFA}
@@ -35,6 +35,7 @@ var
 
  MACMouseDown,MACMouseAccept,MACKeyAccept:Boolean;
  MACMouseX,MACMouseY,MACClickX,MACClickY:Longint;
+ MACClickT:Int64;
 
 Type
  EList=Specialize List<IPTCEvent>;
@@ -58,11 +59,17 @@ const
  tp_Sqrt=3;
  tp_Pow=4;
  tp_Sin=5;
+ tp_ArcSin=6;
+ tp_ArcTan=7;
 
- tpb_Line=21;
- tpb_Sqr=22;
- tpb_Sqr2=23;
- tpb_Sin=24;
+ tp_Luna=21;
+ tp_Luna2=22;
+
+
+ tpb_Line=51;
+ tpb_Sqr=52;
+ tpb_Sqr2=53;
+ tpb_Sin=54;
 
 const
  atp_normal=0;
@@ -148,6 +155,8 @@ type
  pBaseGraph=^BaseGraph;
  pBaseAnime=^BaseAnime;
  pGraph=^Graph;
+ pTextGraph=^TextGraph;
+ pGroupGraph=^GroupGraph;
  pSimpleAnime=^SimpleAnime;
  pTimeLineAnime=^TimeLineAnime;
  pAnimeObj=^AnimeObj;
@@ -199,6 +208,8 @@ type
   function cut(x1,y1,x2,y2:longint):Graph;
   function cut:Graph;
   Function Adapt(limitH,limitW:Longint):Graph;
+  Function Scale(limitH,limitW:Longint):Graph;
+  Function Scale2(LimitH,LimitW:Longint):Graph;
   function LinearMapped(x1,y1,x2,y2,x3,y3,x4,y4:real):Graph;
   function ColorBlend(const G:Graph;x,y:longint;blendtp:shortint):Graph;
   procedure AddText(const s:ansistring;fontsize:longint;const c:Color;_x,_y:longint);
@@ -257,7 +268,7 @@ type
   Text,FontType:Ansistring;
   FontSize:Longint;
   FontAngle:Single;
-  FontColor:Color;
+  FontColor,FontBackColor:Color;
   Bold,Italic,UnderLine,StrikeOut:Boolean;
   CharSet:DWord; //EASTEUROPE_CHARSET  GB2312_CHARSET   SHIFTJIS_CHARSET   RUSSIAN_CHARSET
   Constructor Create;
@@ -930,8 +941,8 @@ Begin
    x:=tmpB.X;
    y:=tmpB.Y;
    button:=GetMouseCode(tmpB.button);
-   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=x; MACClickY:=y End;
-   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
+   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=x; MACClickY:=y; MACClickT:=DeltaTime End;
+   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1 End;
    MACMouseX:=x;
    MACMouseY:=y;
   End
@@ -966,8 +977,8 @@ Begin
    x:=tmpB.X;
    y:=tmpB.Y;
    button:=GetMouseCode(tmpB.button);
-   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=x; MACClickY:=y End;
-   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
+   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=x; MACClickY:=y; MACClickT:=DeltaTime End;
+   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1  End;
    MACMouseX:=x;
    MACMouseY:=y;
   End
@@ -1005,8 +1016,8 @@ Begin
    E.button:=GetMouseCode(tmpB.button);
    E.press:=tmpB.press;
    E.release:=tmpB.release;
-   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=E.x; MACClickY:=E.y End;
-   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
+   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=E.x; MACClickY:=E.y; MACClickT:=DeltaTime End;
+   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1  End;
    MACMouseX:=E.x;
    MACMouseY:=E.y;
   End
@@ -1045,8 +1056,8 @@ Begin
    E.button:=GetMouseCode(tmpB.button);
    E.press:=tmpB.press;
    E.release:=tmpB.release;
-   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=E.x; MACClickY:=E.y End;
-   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
+   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=E.x; MACClickY:=E.y; MACClickT:=DeltaTime End;
+   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1  End;
    MACMouseX:=E.x;
    MACMouseY:=E.y;
   End
@@ -1588,6 +1599,7 @@ end;
 Procedure Graph.filla(x1,y1,x2,y2:Longint;const c:Color);
 Var i,j:Longint; p:pColor;
 Begin
+ If c.a=0 Then Exit;
  x1:=Max(1,x1); x2:=Min(Height,x2);
  y1:=Max(1,y1); y2:=Min(Width,y2);
  For i:=x1-1 to x2-1 Do Begin p:=Canvas+i*Width+y1-1;
@@ -1595,19 +1607,13 @@ Begin
 End;
 
 procedure Graph.Resize(newH,newW:Longint);
-var
- newG:Graph;
- i,j:Longint;
- scaH,scaW:real;
+Var tmp:pGraph;
 begin
- newG.Create;
- newG.Create(newH,newW);
- scaH:=Height/newH;
- scaW:=Width/newW;
- for i:=1 to newH do
- for j:=1 to newW do newG.setp(i,j,Getp(round(i*scaH),round(j*scaW)));
+ If (Height<=0)Or(Width<=0)Or(newH<=0)Or(newW<=0) Then Begin Create; Exit End;
+ New(tmp);
+ tmp^:=Scale(newH,newW);
  Free;
- self:=newG
+ Self:=tmp^
 end;
 
 procedure Graph.Reverse(_rv:Longint);
@@ -1650,8 +1656,49 @@ Function Graph.Adapt(limitH,limitW:Longint):Graph;
 Var ScaleFactor:Single;
 Begin
  ScaleFactor:=Math.Max(LimitH/Height,LimitW/Width);
- Adapt:=Cut;
- Opt_Scale(Adapt,ScaleFactor,ScaleFactor)
+ Adapt:=Scale(Round(Height*ScaleFactor),Round(Width*ScaleFactor));
+End;
+
+Function Graph.Scale(limitH,limitW:Longint):Graph;
+Var i,j:Longint; sx,sy:Real; p,q:pColor;
+Begin
+ If (Height<=0)Or(Width<=0)Or(LimitH<=0)Or(LimitW<=0) Then Begin Result.Create; Exit End;
+ Result.Create(LimitH,LimitW);
+ sx:=(Height-1)/LimitH;
+ sy:=(Width-1)/LimitW;
+ p:=Result.Canvas;
+ For i:=0 to LimitH-1 Do Begin q:=Canvas+Round(i*Sx)*Width;
+ For j:=0 to LimitW-1 Do Begin
+  p^:=(q+Round(j*sy))^; Inc(p) End End
+End;
+
+Function Graph.Scale2(limitH,limitW:Longint):Graph;
+Var i,j,k:Longint; sx,sy,tx,ty:Real; p,u,v:pColor;
+
+ Function CountDisWeight(Const rx,ry:Real;Const c1,c2,c3,c4:Color):Color;
+ Var d1,d2,d3,d4,di:Real;
+ Begin
+  d1:=Sqrt(Sqr(  rx)+Sqr(  ry));
+  d2:=Sqrt(Sqr(1-rx)+Sqr(  ry));
+  d3:=Sqrt(Sqr(  rx)+Sqr(1-ry));
+  d4:=Sqrt(Sqr(1-rx)+Sqr(1-ry));
+  di:=1/(d1+d2+d3+d4);
+  d1:=d1*di; d2:=d2*di; d3:=d3*di; d4:=d4*di;
+  Exit(RGBA(Round(c1.r*d1+c2.r*d2+c3.r*d3+c4.r*d4),
+            Round(c1.g*d1+c2.g*d2+c3.g*d3+c4.g*d4),
+            Round(c1.b*d1+c2.b*d2+c3.b*d3+c4.b*d4),
+            Round(c1.a*d1+c2.a*d2+c3.a*d3+c4.a*d4)))
+ End;
+
+Begin
+ If (Height<=0)Or(Width<=0)Or(LimitH<=0)Or(LimitW<=0) Then Begin Result.Create; Exit End;
+ Result.Create(LimitH,LimitW);
+ sx:=(Height-1)/LimitH;
+ sy:=(Width-1)/LimitW;
+ p:=Result.Canvas;
+ For i:=0 to LimitH-1 Do Begin tx:=i*Sx; u:=Canvas+Trunc(tx)*Width; v:=u+Width; tx:=tx-Int(Tx);
+ For j:=0 to LimitW-1 Do Begin ty:=j*Sy; k:=Trunc(ty);
+  p^:=CountDisWeight(tx,ty-k,(u+k)^,(u+k+1)^,(v+k)^,(v+k+1)^); Inc(p) End End
 End;
 
 Function Graph.Reproduce:pBaseGraph;
@@ -2314,6 +2361,7 @@ Begin
  FontType:='幼圆';
  FontSize:=20;
  FontColor:=Color_Black;
+ FontBackColor:=Color_Alpha;
  FontAngle:=0;
  Bold:=False;
  Italic:=False;
@@ -2354,6 +2402,7 @@ Begin
  FontType:='幼圆';
  FontSize:=20;
  FontColor:=Color_Black;
+ FontBackColor:=Color_Alpha;
  FontAngle:=0;
  Bold:=False;
  Italic:=False;
@@ -2371,6 +2420,7 @@ Begin
  Cut.FontSize:=FontSize;
  Cut.FontColor:=FontColor;
  Cut.FontAngle:=FontAngle;
+ Cut.FontBackColor:=FontBackColor;
  Cut.Bold:=Bold;
  Cut.Italic:=Italic;
  Cut.UnderLine:=UnderLine;
@@ -2406,8 +2456,9 @@ Var
  Clip:Graph;
  ClipX1,ClipY1,ClipX2,ClipY2:Longint;
  w,h,_stride,_offset,x,y:longint;
- hHeight,hWidth,_cx,_cy,_nx,_ny,_sin,_cos:Single;
+ hHeight,hWidth,_cx,_cy,_nx,_ny,_sin,_cos,_hx,_hy,_vx,_vy,_tx,_ty:Single;
  TextC,BoldValue:DWord;
+ colp:pColor;
  buf:pointer;
  dc:HDC;
  hbmp:HBITMAP;
@@ -2423,12 +2474,26 @@ Begin
  _cos:=cos(FontAngle/180*pi);
  _nx:=-hHeight*_cos+hWidth*_sin+_cx;
  _ny:=-hHeight*_sin-hWidth*_cos+_cy;
- ClipX1:=Round(_CX-hHeight*Abs(_Cos)-hWidth*Abs(_Sin));
- ClipY1:=Round(_CY-hHeight*Abs(_Sin)-hWidth*Abs(_Cos));
- ClipX2:=Round(_CX+hHeight*Abs(_Cos)+hWidth*Abs(_Sin));
- ClipY2:=Round(_CY+hHeight*Abs(_Sin)+hWidth*Abs(_Cos));
+ _hx:=hHeight*Abs(_Cos)+hWidth*Abs(_Sin);
+ _hy:=hHeight*Abs(_Sin)+hWidth*Abs(_Cos);
+ ClipX1:=Round(_CX-_hx);
+ ClipY1:=Round(_CY-_hy);
+ ClipX2:=Round(_CX+_hx);
+ ClipY2:=Round(_CY+_hy);
  If (ClipX1>A.Height)Or(ClipY1>A.Width) Then Exit;
  Clip:=A.Cut(ClipX1,ClipY1,ClipX2,ClipY2);
+ If FontBackColor.a<>0 Then
+ If FontAngle=0 Then Clip.FillA(1,1,Clip.Height,Clip.Width,FOntBackColor) Else
+ Begin
+  ColP:=Clip.Canvas;
+  For x:=0 to Clip.Height-1 Do
+  For y:=0 to Clip.Width-1 Do Begin
+   _vx:=x-_hx; _vy:=y-_hy;
+   _tx:=_vy*_sin+_vx*_cos; _ty:=_vy*_cos-_vx*_sin;
+   If Not((Abs(_tx)>hHeight)Or(Abs(_ty)>hWidth)) Then PureBlendColor(Colp^,FontBackColor);
+   Inc(colp)
+  End
+ End;
  H:=Clip.Height;
  W:=Clip.Width;
  _stride:=(w*3-1or 3)+1;
@@ -2497,7 +2562,8 @@ Var
  oSize:Longint;
  oRotate:Single;
  oText:Ansistring;
- T,X,Y:Longint;
+ I,X,Y,ClipX1,ClipY1,ClipX2,ClipY2:Longint;
+ hHeight,hWidth,_Sin,_Cos,_hX,_hY:Single;
 Begin
  Acs:=Env^.Role;
  If Env^.Acts.Enable Then Env^.Acts.Apply(@Acs);
@@ -2508,14 +2574,24 @@ Begin
  FontAngle:=oRotate+Acs.Rotate;
  X:=Round((Length(Text)-1)*Acs.ClipX1)+1;
  Y:=Round((Length(Text)-1)*Acs.ClipX2)+1;
- For T:=1 to Length(Text) Do if (T<X)or(T>Y) then Text[T]:=' ';
- X:=Round(Acs.BiasX);
- Y:=Round(Acs.BiasY);
- T:=Max(Width,Height);
- Tmp:=Below^.Cut(X-T,Y-T,X+T,y+T);
- WriteTo(Tmp,T+1,T+1);
+ For I:=1 to X-1 Do Text[I]:=' ';
+ For I:=Y+1 to Length(Text) Do Text[I]:=' ';
+ hHeight:=Height*0.5;
+ hWidth:=Width*0.5;
+ X:=Round(Acs.BiasX+hHeight);
+ Y:=Round(Acs.BiasY+hWidth);
+ _sin:=sin(FontAngle/180*pi);
+ _cos:=cos(FontAngle/180*pi);
+ _hx:=hHeight*Abs(_Cos)+hWidth*Abs(_Sin);
+ _hy:=hHeight*Abs(_Sin)+hWidth*Abs(_Cos);
+ ClipX1:=Round(X-_hx);
+ ClipY1:=Round(Y-_hy);
+ ClipX2:=Round(X+_hx);
+ ClipY2:=Round(Y+_hy);
+ Tmp:=Below^.Cut(ClipX1,ClipY1,ClipX2,ClipY2);
+ WriteTo(Tmp,Round(Acs.BiasX)-ClipX1+1,Round(Acs.BiasY)-ClipY1+1);
  if Abs(1-Acs.Alpha)>1e-5 then Opt_Alpha(Tmp,Acs.Alpha);
- BlendTo(Tmp,Below^,X-T-1,Y-T-1);
+ BlendTo(Tmp,Below^,ClipX1-1,ClipY1-1);
  Tmp.Free;
  SetSize(oSize);
  FontAngle:=oRotate;
@@ -2891,6 +2967,12 @@ end;
    tp_Sqrt:exit(sqrt(x));
    tp_Pow :exit(2**x-1);
    tp_Sin :exit(sin(x*pi*0.5));
+   tp_ArcSin:Exit(ArcSin(x*2-1)/pi+0.5);
+   tp_ArcTan:Exit(ArcTan(x*2-1)/(pi*0.5)+0.5);
+
+   tp_Luna :If x<0.5 Then Exit(0.5-Sqrt(0.25-x*x)) Else Exit(0.5+Sqrt(0.25-Sqr(1-x)));
+   tp_Luna2:If x<0.5 Then Exit(Sqrt(0.25-Sqr(x-0.5))) Else Exit(1-Sqrt(0.25-Sqr(x-0.5)));
+
 
    tpb_Line:if x<0.5 then exit(2*x) else exit(2-2*x);
    tpb_Sqr :if x<0.5 then exit(4*x*x) else exit(4*sqr(1-x));
@@ -3178,10 +3260,12 @@ begin
  if tmp>=1000 then begin
   LastFPS:=FPSCount;
   FPSCount:=0;
-  inc(UpdateFPS,tmp div 1000*1000)
+  inc(UpdateFPS,tmp-tmp mod 1000)
  end;
  tmp:=DeltaTime-LastFresh;
- if tmp<FreshLimit then sleep(FreshLimit-tmp);
+ While tmp<FreshLimit Do Begin
+  Sleep(1);
+  tmp:=DeltaTime-LastFresh End;
  inc(LastFresh,tmp);
  if Not ConsoleUsing then Exit;
  surface.unlock;
@@ -3449,25 +3533,9 @@ end;
  end;
 
  procedure Opt_Scale(var g:Graph;x,y:single);
- var
-  i,j:longint;
-  Paper:Graph;
-  invx,invy:single;
  begin
   if (abs(x-1)<1e-5)and(abs(y-1)<1e-5) then exit;
-  Paper.Create;
-  Paper.Create(round(g.Height*x),round(g.Width*y));
-  if (abs(x)>1e-5)and(abs(y)>1e-5) then
-  begin
-   invx:=1/x;
-   invy:=1/y;
-   with Paper do
-   for i:=0 to Height-1 do
-   for j:=0 to Width-1 do
-    Canvas[i*Width+j]:=g.Canvas[round(i*invx)*g.Width+round(j*invy)]
-  end;
-  g.Free;
-  g:=Paper
+  g.Resize(Round(g.Height*x),Round(g.Width*y))
  end;
 
  procedure Opt_Alpha(var g:Graph;a:single);
@@ -3661,8 +3729,8 @@ begin
      SAMe.button:=GetMouseCode(tmpB.Button);
      SAMe.press:=tmpB.Press;
      SAMe.release:=tmpB.Release;
-     If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=tmpB.x; MACClickY:=tmpB.y End;
-     If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
+     If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=tmpB.x; MACClickY:=tmpB.y; MACClickT:=DeltaTime End;
+     If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1  End;
      MACMouseX:=tmpB.x;
      MACMouseY:=tmpB.y;
     End
@@ -3730,8 +3798,8 @@ begin
      SAMe.button:=GetMouseCode(tmpB.Button);
      SAMe.press:=tmpB.Press;
      SAMe.release:=tmpB.Release;
-     If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=tmpB.x; MACClickY:=tmpB.y End;
-     If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1 End;
+     If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=tmpB.x; MACClickY:=tmpB.y; MACClickT:=DeltaTime End;
+     If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1  End;
      MACMouseX:=tmpB.x;
      MACMouseY:=tmpB.y;
     End
@@ -3854,4 +3922,5 @@ begin
  MACMouseY:=-1;
  MACClickX:=-1;
  MACClickY:=-1;
+ MACClickT:=-1
 end.

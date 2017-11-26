@@ -7,6 +7,9 @@ interface
 
 Type
 
+ pInt=^Longint;
+ pUInt=^Dword;
+
  Rana=Record
   x,y:Longint;
   Class Operator <(Const a,b:Rana)c:Boolean;
@@ -23,12 +26,13 @@ Const
  cmp_Less=1;
  cmp_Greater=2;
 
+Type
+ pAnsistring=^Ansistring;
+
 //Common Type
 type
 
  Alphabet=Set Of Char;
-
- pInt=^Longint;
 
  generic List<T>=object
   Size:longint;
@@ -113,7 +117,6 @@ type
  End;
 
 
-
 Function ListPart(Src:Ansistring;Const Sep:Alphabet):SList;
 Function ListPart(Src:Ansistring):SList;
 Function ListPair(Src,pairL,pairR:Ansistring):SList;
@@ -139,6 +142,11 @@ Type
  End;
 
 
+
+
+ Function GetPChar(S:Ansistring):PChar;
+
+
 implementation
 
  Class Operator Rana.<(Const a,b:Rana)c:Boolean;Begin Exit(a.x<b.x) End;
@@ -150,10 +158,13 @@ implementation
  Class Operator Rana.-(Const a,b:Rana)c:Rana;Begin c.x:=a.x-b.x; c.y:=a.y-b.y End;
 
 
+ Function GetPChar(s:Ansistring):PChar;Begin Exit(PChar(pUint(@s)^)) End;
+
+
 
 //GenericObject-List-Begin
 
-function List.isnil:boolean;
+ function List.isnil:boolean;
  begin
   exit(Size=0)
  end;

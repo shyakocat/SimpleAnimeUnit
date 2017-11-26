@@ -3,6 +3,13 @@ unit SAkitUnit;
 interface
 uses CommonTypeUnit,SimpleAnimeUnit2,Windows,SysUtils,Math;
 
+Const
+ pad_direct=0;
+ pad_middle=1;
+ pad_adapt =2;
+ pad_scale =3;
+ pad_repeat=4;
+
 
 Type
 
@@ -10,7 +17,7 @@ Type
 
 
 
- dw_Proc=Function(Env:pElement;Below:pGraph):pGraph;
+ dw_Proc=Function(Env:pElement;Below:pGraph;Outer:Pointer):pGraph;
 
 
  pPureGraph=^PureGraph;
@@ -91,8 +98,10 @@ Type
 
  ScriptGraph=Object(BaseGraph)
   Process:dw_Proc;
+  Outer:Pointer;
   Constructor Create;
   Constructor Create(_p:dw_Proc);
+  Constructor Create(_p:dw_Proc;_o:Pointer);
   Destructor Free;
   Function Reproduce:pBaseGraph;Virtual;
   Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
@@ -143,7 +152,7 @@ Type
 
  SAListBox=Packed Object(Element)
   ListBoxType,StatusTag:ShortInt;
-  OWidth,OHeight,EHeight,dw_Bias:Longint;
+  OWidth,OHeight,EHeight,dw_Bias,dw_foot,dw_Goal:Longint;
   Standard:TextGraph;
   BackGround:pBaseGraph;
   Entry:SList;
@@ -153,6 +162,9 @@ Type
   Procedure AddEntry(_entry:Ansistring);
   Function Reproduce:pElement;Virtual;
  End;
+
+
+ Function PaddingGraph(Const Src:Graph;_padstyle:ShortInt;_winH,_winW:Longint):Graph;
 
 
 Var
@@ -165,6 +177,37 @@ Var
 
 
 implementation
+
+ Function PaddingGraph(Const Src:Graph;_padstyle:ShortInt;_winH,_winW:Longint):Graph;
+ Var i,j:Longint;
+ Begin
+  Case _padstyle Of
+   pad_direct:Begin
+               Result.Create(_winH,_winW);
+               FillChar(Result.Canvas^,Result.Bits,0);
+               DrawTo(Src,Result,0,0);
+              End;
+   pad_middle:Begin
+               Result.Create(_winH,_winW);
+               FillChar(Result.Canvas^,Result.Bits,0);
+               DrawTo(Src,Result,(_WinH-Src.Height)Div 2,(_WinW-Src.Width)Div 2)
+              End;
+    pad_adapt:Begin
+               Result:=Src.Adapt(_winH,_winW)
+              End;
+    pad_scale:Begin
+               Result:=Src.Scale(_winH,_winW)
+              End;
+   pad_repeat:Begin
+               Result.Create(_winH,_winW);
+               i:=0; While i<_winH Do Begin
+               j:=0; While j<_winW Do Begin DrawTo(Src,Result,i,j);
+                Inc(j,Src.Width) End;
+                Inc(i,Src.Height) End
+              End;
+         Else Result.Create
+  End
+ End;
 
 Constructor PureGraph.Create;
 Begin Create(10,10,Color_Alpha) End;
@@ -677,17 +720,26 @@ End;
 
 Constructor ScriptGraph.Create;
 Begin
- Process:=Nil
+ Process:=Nil;
+ Outer:=Nil
 End;
 
 Constructor ScriptGraph.Create(_p:dw_Proc);
 Begin
- Process:=_p
+ Process:=_p;
+ Outer:=Nil
+End;
+
+Constructor ScriptGraph.Create(_p:dw_Proc;_o:Pointer);
+Begin
+ Process:=_p;
+ Outer:=_o
 End;
 
 Destructor ScriptGraph.Free;
 Begin
- Process:=Nil
+ Process:=Nil;
+ Outer:=Nil
 End;
 
 Function ScriptGraph.Reproduce:pBaseGraph;
@@ -700,7 +752,8 @@ End;
 Function ScriptGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
 Begin
  If Process=Nil Then Exit(nil);
- Result:=Process(Env,Below);
+ Result:=Process(Env,Below,Outer);
+ If Result=Nil Then Exit;
  Width:=Result^.Width;
  Height:=Result^.Height;
 End;
@@ -1167,6 +1220,8 @@ Begin
  OHeight:=0;
  EHeight:=0;
  dw_Bias:=0;
+ dw_foot:=0;
+ dw_goal:=0;
  Standard.Create;
  BackGround:=Nil;
  Entry.Clear;
@@ -1188,7 +1243,8 @@ End;
     MACMouseAccept:=True;
     StatusTag:=1; {Now Draging}
 //  EntryOver:=0;
-    dw_Bias:=Max(0,Min(Entry.Size*EHeight-OHeight,Round((E.x-Role.BiasX)/OHeight*(Entry.Size*EHeight)-OHeight*0.5)))
+    dw_Foot:=dw_Bias;
+    dw_Goal:=Max(0,Min(Entry.Size*EHeight-OHeight,Round((E.x-Role.BiasX)/OHeight*(Entry.Size*EHeight)-OHeight*0.5)));
    End Else Begin
     If Inner And 1=0 Then EntryOver:=0
     Else Begin EntryOver:=Round(E.x-Role.BiasX+dw_Bias)Div EHeight+1;
@@ -1199,7 +1255,7 @@ End;
   End
  End;
 
- Function SAListBoxDesign1(Env:pElement;Below:pGraph):pGraph;
+ Function SAListBoxDesign1(Env:pElement;Below:pGraph;Outer:Pointer):pGraph;
  Var
   i,CC1,CC2,CC3,CC4,CC5,CC6,CD1,CD2:Longint;
   Cav:pBitmapGraph; tmp,Res:pGraph;
@@ -1214,6 +1270,11 @@ End;
    New(tmp); tmp:=BackGround^.Recovery(Env,Below);
    New(Cav,Create(tmp^)); tmp^.Free;
    dw_Bias:=Max(0,Min(dw_Bias,Entry.Size*EHeight-OHeight));
+   If MACClickT<>-1 Then Begin
+    If DeltaTime-MACClickT>150 Then dw_Bias:=dw_Goal Else
+    If dw_Goal>dw_Bias Then dw_Bias:=Min(dw_Goal,dw_Bias+Round(tp_Count((DeltaTime-MACClickT)/150,tp_Sin)*OHeight)) Else
+    If dw_Goal<dw_Bias Then dw_Bias:=Max(dw_Goal,dw_Bias-Round(tp_Count((DeltaTime-MACClickT)/150,tp_Sin)*OHeight))
+   End;
    i:=Max(1,dw_Bias Div EHeight);
    While (i<=Entry.Size)And((i-1)*EHeight<=dw_Bias+OHeight) Do Begin
     If EntrySelect=I Then
@@ -1243,6 +1304,8 @@ Begin
  OHeight:=_H;
  EHeight:=_S+4;
  dw_Bias:=0;
+ dw_Foot:=0;
+ dw_Goal:=0;
  Standard.Create;
  Standard.SetSize(_S);
  New(tmp,Create(_H,_W,Color_White));
