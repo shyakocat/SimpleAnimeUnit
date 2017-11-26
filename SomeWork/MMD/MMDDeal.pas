@@ -6,7 +6,7 @@ uses SimpleAnimeUnit2,MatrixUnit,PMDDeal,VMDDeal,ptc,gl,glu,math;
 Type
  NULLGraph=Object(BaseGraph)
   Function Reproduce:pBaseGraph;Virtual;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
  End;
 var
  LightPos:array[0..3]of GLfloat=(3,0,-3,0);
@@ -40,7 +40,7 @@ Begin
  Exit(Tmp)
 End;
 
-Function NULLGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+Function NULLGraph.Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;
 Begin
  Exit(Nil)
 End;
@@ -87,7 +87,7 @@ Var
  TmpEye,TmpCtr,TmpUpW:Vector3;
  Status:Longint=0;
 
-Procedure MMDCameraBasic(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+Procedure MMDCameraBasic(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
 Var
  Tmp1,Tmp2:Vector3;
  TmpL,TmpA,TmpB:Single;

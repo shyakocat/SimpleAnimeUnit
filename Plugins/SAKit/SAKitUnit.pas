@@ -17,7 +17,7 @@ Type
 
 
 
- dw_Proc=Function(Env:pElement;Below:pGraph;Outer:Pointer):pGraph;
+ dw_Proc=Function(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Outer:Pointer):pGraph;
 
 
  pPureGraph=^PureGraph;
@@ -33,7 +33,7 @@ Type
   Constructor Create(_H,_W:Longint;Const _C:Color);
   Destructor Free;Virtual;
   Function Reproduce:pBaseGraph;Virtual;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
  End;
 
  GradualGraph=Object(BaseGraph)
@@ -45,7 +45,7 @@ Type
   Procedure SetParam(Const S,T:Color;A:Single;_tp:ShortInt);
   Destructor Free;Virtual;
   Function Reproduce:pBaseGraph;Virtual;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
  End;
 
  MultiGraph=Object(BaseGraph)
@@ -58,7 +58,7 @@ Type
   Procedure AddPic(Const al:pBaseGraph);
   Function Cut:MultiGraph;
   Function Reproduce:pBaseGraph;Virtual;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
  End;
 
  BitmapGraph=Object(BaseGraph)
@@ -93,7 +93,7 @@ Type
   Procedure DrawText(x,y:Longint;Const T:TextGraph);
 
   Function Reproduce:pBaseGraph;Virtual;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
  End;
 
  ScriptGraph=Object(BaseGraph)
@@ -104,7 +104,7 @@ Type
   Constructor Create(_p:dw_Proc;_o:Pointer);
   Destructor Free;
   Function Reproduce:pBaseGraph;Virtual;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
  End;
 
 Const
@@ -225,7 +225,7 @@ Begin
  Exit(Tmp)
 End;
 
-Function PureGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+Function PureGraph.Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;
 Var Tmp:pGraph;
 Begin
  New(Tmp,Create(Height,Width));
@@ -269,7 +269,7 @@ Begin
  Exit(Tmp)
 End;
 
-Function GradualGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+Function GradualGraph.Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;
 Var
  Tmp:pGraph;
  _Sin,_Cos,MxDis,Dis,Pro:Single;
@@ -337,10 +337,10 @@ Begin
  Exit(Tmp)
 End;
 
-Function MultiGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+Function MultiGraph.Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;
 Begin
  If Select=0 Then Exit(Nil);
- Exit(Alternative[Select]^.Recovery(Env,Below))
+ Exit(Alternative[Select]^.Recovery(Env,Obj,Below))
 End;
 
 Function MultiGraph.SetSelect(X:Longint):Longint;
@@ -495,7 +495,7 @@ Begin
  Exit(Tmp)
 End;
 
-Function BitmapGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+Function BitmapGraph.Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;
 Var Tmp:pGraph;
 Begin
  New(Tmp,Create);
@@ -749,10 +749,10 @@ Begin
  Exit(Tmp)
 End;
 
-Function ScriptGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+Function ScriptGraph.Recovery(Env:psAMACEvent;Obj:pElement;Below:pGraph):pGraph;
 Begin
  If Process=Nil Then Exit(nil);
- Result:=Process(Env,Below,Outer);
+ Result:=Process(Env,Obj,Below,Outer);
  If Result=Nil Then Exit;
  Width:=Result^.Width;
  Height:=Result^.Height;
@@ -769,13 +769,13 @@ Begin
  Std:=SAButtonStatusInit;
 End;
 
- Procedure SAButtonBoxGeneral(Env:pElement;Below:pGraph;Const E:SAMouseEvent;Inner:ShortInt);
+ Procedure SAButtonBoxGeneral(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;Inner:ShortInt);
  Begin
-  With pSAButtonBox(Env)^ Do
+  With pSAButtonBox(Obj)^ Do
   With Std Do
   Begin
    Gray:=Enable;
-   If Inner And 1=1 Then MACMouseAccept:=True;
+   If Inner And 1=1 Then Env^.MouseAccept:=True;
    If Inner And 1=0 Then Down:=False;
    If (Inner And 1=1)And(E.Press) Then Begin Down:=True; Focus:=True End;
    If E.Release Then Begin Down:=False; If Inner And 1=0 Then Focus:=False End;
@@ -784,11 +784,11 @@ End;
   End
  End;
 
- Procedure SAButtonBoxMouseDeal1(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+ Procedure SAButtonBoxMouseDeal1(Env:psAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  Begin
-  If MACMouseAccept Then Exit;
-  SAButtonBoxGeneral(Env,Below,E,Inner);
-  With pSAButtonBox(Env)^ Do
+  If Env^.MouseAccept Then Exit;
+  SAButtonBoxGeneral(Env,Obj,Below,E,Inner);
+  With pSAButtonBox(Obj)^ Do
   With Std Do
   Begin
    Role.Visible:=Gray;
@@ -798,7 +798,7 @@ End;
     Role.Alpha:=1;
     if (E.Press)And(Inner And 1=1)And(CustomHandle.Enable) Then
      If CustomHandle.MouseEvent<>Nil Then
-      CustomHandle.MouseEvent(Env,Below,E,Inner)
+      CustomHandle.MouseEvent(Env,Obj,Below,E,Inner)
    End Else
    If High Then
    Begin
@@ -834,11 +834,11 @@ Begin
  Talk.MouseEvent:=@SAButtonBoxMouseDeal1
 End;
 
- Procedure SAButtonBoxMouseDeal2(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+ Procedure SAButtonBoxMouseDeal2(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  Begin
-  If MACMouseAccept Then Exit;
-  SAButtonBoxGeneral(Env,Below,E,Inner);
-  With pSAButtonBox(Env)^ Do
+  If Env^.MouseAccept Then Exit;
+  SAButtonBoxGeneral(Env,Obj,Below,E,Inner);
+  With pSAButtonBox(Obj)^ Do
   WIth Std Do
   Begin
    If Down Then
@@ -846,7 +846,7 @@ End;
     SetSelect(SAMouseDown);
     If (E.Press)And(Inner And 1=1)And(CustomHandle.Enable) Then
      If CustomHandle.MouseEvent<>Nil Then
-      CustomHandle.MouseEvent(Env,Below,E,Inner)
+      CustomHandle.MouseEvent(Env,Obj,Below,E,Inner)
    End Else
    If High Then
    Begin
@@ -875,11 +875,11 @@ Begin
  Talk.MouseEvent:=@SAButtonBoxMouseDeal2
 End;
 
- Procedure SAButtonBoxMouseDeal3(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+ Procedure SAButtonBoxMouseDeal3(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  Begin
-  If MACMouseAccept Then Exit;
-  SAButtonBoxGeneral(Env,Below,E,Inner);
-  With pSAButtonBox(Env)^ Do
+  If Env^.MouseAccept Then Exit;
+  SAButtonBoxGeneral(Env,Obj,Below,E,Inner);
+  With pSAButtonBox(Obj)^ Do
   With Std Do
   Begin
    If Not Gray Then SetSelect(5) Else
@@ -889,7 +889,7 @@ End;
                     SetSelect(1);
    If (Inner And 1=1)And(E.Press) Then
     If CustomHandle.MouseEvent<>Nil Then
-     CustomHandle.MouseEvent(Env,Below,E,Inner)
+     CustomHandle.MouseEvent(Env,Obj,Below,E,Inner)
   End
  End;
 
@@ -1082,7 +1082,7 @@ Var
 Begin
  obj:=pMultiGraph(Role.Source);
  obj^.Alternative.Items[_SAEtp]^.Free;
- tmp:=Plain.Alternative.Items[_SAEtp]^.Recovery(Nil,Nil);
+ tmp:=Plain.Alternative.Items[_SAEtp]^.Recovery(Nil,Nil,Nil);
  Caption.WriteTo(tmp^,(Height-Caption.Height)Div 2,(Width-Caption.Width)Div 2);
  obj^.Alternative.Items[_SAEtp]:=Tmp;
 End;
@@ -1104,15 +1104,15 @@ Begin
  Check:=False
 End;
 
- Procedure SACheckBoxMouseDeal1(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+ Procedure SACheckBoxMouseDeal1(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  Var
-  cEnv:pSACheckBox;
+  cObj:pSACheckBox;
  Begin
-  If MACMouseAccept Then Exit;
-  cEnv:=pSACheckBox(Env);
+  If Env^.MouseAccept Then Exit;
+  cObj:=pSACheckBox(Obj);
   If (inner And 1=1)And(E.Button=1)And(E.Press) Then
-   cEnv^.Check:=Not cEnv^.Check;
-  pMultiGraph(Env^.Role.Source)^.SetSelect(1+Ord(cEnv^.Check));
+   cObj^.Check:=Not cObj^.Check;
+  pMultiGraph(Obj^.Role.Source)^.SetSelect(1+Ord(cObj^.Check));
  End;
 
 Constructor SACheckBox.CreateType1;
@@ -1232,15 +1232,15 @@ Begin
  Talk.Create;
 End;
 
- Procedure SAListBoxMouseDeal1(Env:pElement;Below:pGraph;Const E:SAMouseEvent;Inner:ShortInt);
+ Procedure SAListBoxMouseDeal1(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;Inner:ShortInt);
  Begin
-  If MACMouseAccept Then Exit;
-  With pSAListBox(Env)^ Do Begin
+  If Env^.MouseAccept Then Exit;
+  With pSAListBox(Obj)^ Do Begin
    dw_Bias:=Max(0,Min(dw_Bias,Entry.Size*EHeight-OHeight));
-   If (MACClickX<>-1)And(MACClickY<>-1)And
+   If (Env^.MouseClickX<>-1)And(Env^.MouseClickY<>-1)And
       (Entry.Size*EHeight>OHeight)And
-      (OWidth-12<=MACClickX-Role.BiasY)And(MACClickX-Role.BiasY<=OWidth+5) Then Begin
-    MACMouseAccept:=True;
+      (OWidth-12<=Env^.MouseClickY-Role.BiasY)And(Env^.MouseClickY-Role.BiasY<=OWidth+5) Then Begin
+    Env^.MouseAccept:=True;
     StatusTag:=1; {Now Draging}
 //  EntryOver:=0;
     dw_Foot:=dw_Bias;
@@ -1249,13 +1249,13 @@ End;
     If Inner And 1=0 Then EntryOver:=0
     Else Begin EntryOver:=Round(E.x-Role.BiasX+dw_Bias)Div EHeight+1;
                If (EntryOver<1)Or(EntryOver>Entry.Size) Then EntryOver:=0 End;
-    If (E.Button And 1=1)And(E.Release)And(StatusTag=0) Then Begin EntrySelect:=EntryOver; MACMouseAccept:=true End;
+    If (E.Button And 1=1)And(E.Release)And(StatusTag=0) Then Begin EntrySelect:=EntryOver; Env^.MouseAccept:=true End;
     StatusTag:=0
    End
   End
  End;
 
- Function SAListBoxDesign1(Env:pElement;Below:pGraph;Outer:Pointer):pGraph;
+ Function SAListBoxDesign1(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Outer:Pointer):pGraph;
  Var
   i,CC1,CC2,CC3,CC4,CC5,CC6,CD1,CD2:Longint;
   Cav:pBitmapGraph; tmp,Res:pGraph;
@@ -1266,14 +1266,14 @@ End;
   CC4:=RGB(43,159,255);
   CC5:=RGB(255,255,255);
   CC6:=RGB(231,231,231);
-  With pSAListBox(Env)^ Do Begin
-   New(tmp); tmp:=BackGround^.Recovery(Env,Below);
+  With pSAListBox(Obj)^ Do Begin
+   New(tmp); tmp:=BackGround^.Recovery(Env,Obj,Below);
    New(Cav,Create(tmp^)); tmp^.Free;
    dw_Bias:=Max(0,Min(dw_Bias,Entry.Size*EHeight-OHeight));
-   If MACClickT<>-1 Then Begin
-    If DeltaTime-MACClickT>150 Then dw_Bias:=dw_Goal Else
-    If dw_Goal>dw_Bias Then dw_Bias:=Min(dw_Goal,dw_Bias+Round(tp_Count((DeltaTime-MACClickT)/150,tp_Sin)*OHeight)) Else
-    If dw_Goal<dw_Bias Then dw_Bias:=Max(dw_Goal,dw_Bias-Round(tp_Count((DeltaTime-MACClickT)/150,tp_Sin)*OHeight))
+   If Env^.MouseClickT<>-1 Then Begin
+    If DeltaTime-Env^.MouseClickT>150 Then dw_Bias:=dw_Goal Else
+    If dw_Goal>dw_Bias Then dw_Bias:=Min(dw_Goal,dw_Bias+Round(tp_Count((DeltaTime-Env^.MouseClickT)/150,tp_Sin)*OHeight)) Else
+    If dw_Goal<dw_Bias Then dw_Bias:=Max(dw_Goal,dw_Bias-Round(tp_Count((DeltaTime-Env^.MouseClickT)/150,tp_Sin)*OHeight))
    End;
    i:=Max(1,dw_Bias Div EHeight);
    While (i<=Entry.Size)And((i-1)*EHeight<=dw_Bias+OHeight) Do Begin

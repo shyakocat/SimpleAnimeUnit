@@ -199,25 +199,25 @@ begin
  Run.Assign('result',0);
 end;
 
- procedure exit_key(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
+ procedure exit_key(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAKeyEvent);
  begin
   if Not E.Release then Exit;
   if E.key=27 then halt
  end;
 
- procedure exitsave_key(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
+ procedure exitsave_key(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAKeyEvent);
  begin
   if Not E.Release then Exit;
   if E.key=27 then halt;
   if E.key=83 then SaveSchedule
  end;
 
- procedure text_mouse(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
+ procedure text_mouse(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
  begin
   if (TextSkipSwitch)Or(E.button=1)and(E.press) then ClickText:=True
  end;
 
- procedure text_key(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
+ procedure text_key(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAKeyEvent);
  begin
   if Not E.Release then Exit;
   if E.key=27 then halt;
@@ -226,11 +226,11 @@ end;
   If E.Key=79 Then TextSkipSwitch:=Not TextSkipSwitch
  end;
 
- procedure select_mouse(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+ procedure select_mouse(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  begin
-  if inner=3 then Env^.Role.Alpha:=0.85 else
-  if inner=2 then Env^.Role.Alpha:=0.5;
-  if (inner and 1=1)and(E.button=1)and(E.press) then Env^.Role.Alpha:=1
+  if inner=3 then Obj^.Role.Alpha:=0.85 else
+  if inner=2 then Obj^.Role.Alpha:=0.5;
+  if (inner and 1=1)and(E.button=1)and(E.press) then Obj^.Role.Alpha:=1
  end;
 
 procedure DialogInit(c:Color;const a:real);
@@ -777,9 +777,9 @@ end;
  End;
 
 
-Procedure SAGSleep(T:Int64);
+Procedure SAGSleep(Const T:Int64);
 Begin
- GetClose(T,100)
+ GetClose(T)
 End;
 
 Function ShowCmd(S:Ansistring):Boolean;
@@ -1145,7 +1145,7 @@ begin
 
   TestMouse(tmpM);
   TestKey(tmpK);
-  if tmpM.X<>0 Then Begin X:=TmpM.X; Y:=TmpM.Y; Z:=TmpM.Button End;
+  if tmpM.X<>0 Then Begin X:=TmpM.Y; Y:=TmpM.X; Z:=TmpM.Button End;
   Key:=TmpK.Key; KeyRelease:=Ord(TmpK.Release);
   if x<>-1 then
   begin
@@ -1262,7 +1262,7 @@ begin
 
   TestMouse(tmpM);
   TestKey(tmpK);
-  if tmpM.X<>0 Then Begin X:=tmpM.X; Y:=tmpM.Y; Z:=tmpM.Button End;
+  if tmpM.X<>0 Then Begin X:=tmpM.Y; Y:=tmpM.X; Z:=tmpM.Button End;
   Key:=TmpK.Key; KeyRelease:=Ord(TmpK.Release);
   if x<>-1 then
   begin
@@ -1398,35 +1398,35 @@ begin
  halt
 end;
 
- procedure SelStart(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
+ procedure SelStart(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
  begin
   If Not HaveShow Then Exit;
   If Inner And 2<>0 Then FreshMust:=True;
 
-  if inner and 1=1 then Env^.Role.SetAlpha(1)
-                   else Env^.Role.SetAlpha(0.6);
+  if inner and 1=1 then Obj^.Role.SetAlpha(1)
+                   else Obj^.Role.SetAlpha(0.6);
 
   if (inner and 1=1)and(E.button=1)and(E.press) then GameStart
  end;
 
- procedure SelContinue(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
+ procedure SelContinue(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shortint);
  begin
   If Not HaveShow Then Exit;
   If Inner And 2<>0 Then FreshMust:=True;
 
-  if inner and 1=1 then Env^.Role.SetAlpha(1)
-                   else Env^.Role.SetAlpha(0.6);
+  if inner and 1=1 then Obj^.Role.SetAlpha(1)
+                   else Obj^.Role.SetAlpha(0.6);
 
   if (inner and 1=1)and(E.button=1)and(E.press) then GameContinue
  end;
 
- procedure SelExit(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+ procedure SelExit(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
  begin
   If Not HaveShow Then Exit;
   If Inner And 2<>0 Then FreshMust:=True;
 
-  if inner and 1=1 then Env^.Role.SetAlpha(1)
-                   else Env^.Role.SetAlpha(0.6);
+  if inner and 1=1 then Obj^.Role.SetAlpha(1)
+                   else Obj^.Role.SetAlpha(0.6);
 
   if (inner and 1=1)and(E.button=1)and(E.press) then GameExit
  end;

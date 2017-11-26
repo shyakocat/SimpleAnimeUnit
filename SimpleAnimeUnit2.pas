@@ -33,9 +33,8 @@ var
  ScrWidth,ScrHeight:Longint;
 
 
- MACMouseDown,MACMouseAccept,MACKeyAccept:Boolean;
- MACMouseX,MACMouseY,MACClickX,MACClickY:Longint;
- MACClickT:Int64;
+
+
 
 Type
  EList=Specialize List<IPTCEvent>;
@@ -163,13 +162,14 @@ type
  pAnimeTag=^AnimeTag;
  pAnimeLog=^AnimeLog;
  pElement=^Element;
+ pSAMACEvent=^SAMACEvent;
 
  BaseGraph=Object
   Width,Height:Longint;
   Constructor Create;
   Destructor Free;Virtual;Abstract;
   Function Reproduce:pBaseGraph;Virtual;Abstract;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;Abstract;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;Abstract;
  end;
 
  Graph=packed object(BaseGraph)
@@ -220,7 +220,7 @@ type
   function inGraph(x,y:Longint):Boolean;
   property Items[i,j:Longint]:Color read getp write setp;default;
   Function Reproduce:pBaseGraph;Virtual;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
  end;
 
  CompressGraph=packed object(BaseGraph)
@@ -232,7 +232,7 @@ type
   function DeCompress:Graph;
   function cut:CompressGraph;
   Function Reproduce:pBaseGraph;Virtual;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
  end;
 
  GroupGraph=packed object(BaseGraph)
@@ -253,7 +253,7 @@ type
   Function GetFrame(const Time:Int64):Graph;
   function cut:GroupGraph;
   Function Reproduce:pBaseGraph;Virtual;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
  end;
 
  shyGifReader=class(TFPReaderGif)
@@ -281,7 +281,7 @@ type
   Procedure Update;
   Function Cut:TextGraph;
   Function Reproduce:pBaseGraph;Virtual;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
  End;
 
  BaseAnime=Object
@@ -401,13 +401,17 @@ type
   Function Reproduce:pBaseAnime;Virtual;
  End;
 
-
  SAMouseEvent=Packed Record x,y,button:Longint; press,release:Boolean End;
  SAKeyEvent=Packed Record key:Longint; press,release,alt,shift,ctrl:Boolean End;
+ SAMACEvent=Packed Record
+  MouseAccept,KeyAccept,MouseDown:Boolean;
+  MouseX,MouseY,MouseClickX,MouseClickY:Longint;
+  MouseClickT:Int64;
+ End;
 
- MouseProc=procedure(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
-   KeyProc=procedure(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
-   NonProc=procedure(Env:pElement;Below:pGraph);
+ MouseProc=procedure(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+   KeyProc=procedure(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAKeyEvent);
+   NonProc=procedure(Env:pSAMACEvent;Obj:pElement;Below:pGraph);
 
  AnimeLog=packed object
   Enable:Boolean;
@@ -416,9 +420,9 @@ type
   KeyEvent:KeyProc;
   NonEvent:NonProc;
   Constructor Create;
-  procedure DealMouse(Env:pElement;Below:pGraph;x,y,button:longint;press,release:boolean);
-  procedure DealKey(Env:pElement;Below:pGraph;key:Longint;press,release,alt,shift,ctrl:Boolean);
-  procedure DealNon(Env:pElement;Below:pGraph);
+  procedure DealMouse(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent);
+  procedure DealKey(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAKeyEvent);
+  procedure DealNon(Env:pSAMACEvent;Obj:pElement;Below:pGraph);
  end;
 
 
@@ -437,6 +441,8 @@ type
 
  Stage=object
   Member:Specialize List<pElement>;
+  StageMAC:SAMACEvent;
+  StageBiasX,StageBiasY:Single;
   constructor Create;
   destructor Free;
   Destructor FreeData;
@@ -505,6 +511,7 @@ var
  procedure Opt_Rotate(var g:Graph;r:single);
 
 
+
 var
  ProgramStart:int64;
  MusicId:longint;
@@ -521,6 +528,8 @@ const
 
 var
  Main:Stage;
+
+ MAC:SAMACEvent;
 
 function DeltaTime:Int64;
 
@@ -559,7 +568,7 @@ Function TestMouse(Var E:SAMouseEvent):Boolean;
 Function TestKey(Var E:SAKeyEvent):Boolean;
 Function TestKeyPress:Boolean;
 Function GetClose:Boolean;
-Function GetClose(Const LimT,IntT:Int64):Boolean;
+Function GetClose(Const LimT:Int64):Boolean;
 
 Function GetEvent:EList;
 
@@ -923,12 +932,27 @@ Begin
  Exit(True)
 End;
 
+Function NULLSAMACEvent:SAMACEvent;
+Begin
+ With Result Do Begin
+  MouseAccept:=False;
+  KeyAccept:=False;
+  MouseDown:=False;
+  MouseX:=-1;
+  MouseY:=-1;
+  MouseClickX:=-1;
+  MouseClickY:=-1;
+  MouseClickT:=-1;
+ End
+End;
 
-Function GetMouse(Var x,y,button:Longint):Boolean;
+
+Function GetMouse(Var MAC:SAMACEvent;Var x,y,button:Longint):Boolean;
 Var
  TmpB:IPTCMouseButtonEvent;
  tmpM:IPTCMouseEvent;
 Begin
+ With MAC Do Begin
  X:=0; Y:=0; Button:=0;
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,True,[PTCMouseEvent,PTCCloseEvent]);
@@ -938,70 +962,78 @@ Begin
   If Supports(Event,IPTCMouseButtonEvent) Then
   Begin
    tmpB:=Event as IPTCMouseButtonEvent;
-   x:=tmpB.X;
-   y:=tmpB.Y;
+   x:=tmpB.Y;
+   y:=tmpB.X;
    button:=GetMouseCode(tmpB.button);
-   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=x; MACClickY:=y; MACClickT:=DeltaTime End;
-   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1 End;
-   MACMouseX:=x;
-   MACMouseY:=y;
+   If tmpB.Press Then Begin MouseDown:=True; MouseClickX:=x; MouseClickY:=y; MouseClickT:=DeltaTime End;
+   If tmpB.Release Then Begin MouseDown:=False; MouseClickX:=-1; MouseClickY:=-1; MouseClickT:=-1 End;
+   MouseX:=x;
+   MouseY:=y
   End
   Else
   Begin
    tmpM:=Event as IPTCMouseEvent;
-   tmpM:=Event as IPTCMouseEvent;
-   x:=tmpM.X;
-   y:=tmpM.Y;
+   x:=tmpM.Y;
+   y:=tmpM.X;
    button:=GetMouseCode(tmpM.ButtonState);
-   MACMouseX:=x;
-   MACMouseY:=y;
+   MouseX:=x;
+   MouseY:=y;
   End
  End;
  Exit(True)
+ End
+End;
+
+Function GetMouse(Var x,y,button:Longint):Boolean;
+Begin Exit(GetMouse(MAC,x,y,button)) End;
+
+Function TestMouse(Var MAC:SAMACEvent;Var x,y,button:Longint):Boolean;
+Var
+ TmpB:IPTCMouseButtonEvent;
+ tmpM:IPTCMouseEvent;
+Begin
+ WIth MAC Do Begin
+ X:=0; Y:=0; Button:=0;
+ If Not ConsoleUsing Then Exit(False);
+ Console.NextEvent(Event,False,[PTCMouseEvent,PTCCloseEvent]);
+ If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
+ If Supports(Event,IPTCMouseEvent) Then
+ Begin
+  If Supports(Event,IPTCMouseButtonEvent) Then
+  Begin
+   tmpB:=Event as IPTCMouseButtonEvent;
+   x:=tmpB.Y;
+   y:=tmpB.X;
+   button:=GetMouseCode(tmpB.button);
+   If tmpB.Press Then Begin MouseDown:=True; MouseClickX:=x; MouseClickY:=y; MouseClickT:=DeltaTime End;
+   If tmpB.Release Then Begin MouseDown:=False; MouseClickX:=-1; MouseClickY:=-1; MouseClickT:=-1  End;
+   MouseX:=x;
+   MouseY:=y;
+  End
+  Else
+  Begin
+   tmpM:=Event as IPTCMouseEvent;
+   x:=tmpM.Y;
+   y:=tmpM.X;
+   button:=GetMouseCode(tmpM.ButtonState);
+   MouseX:=x;
+   MouseY:=y;
+  End;
+  Exit(True)
+ End;
+ Exit(False)
+ End
 End;
 
 Function TestMouse(Var x,y,button:Longint):Boolean;
-Var
- TmpB:IPTCMouseButtonEvent;
- tmpM:IPTCMouseEvent;
-Begin
- X:=0; Y:=0; Button:=0;
- If Not ConsoleUsing Then Exit(False);
- Console.NextEvent(Event,False,[PTCMouseEvent,PTCCloseEvent]);
- If Supports(Event,IPTCCloseEvent) Then Begin Endit; Exit(False) End;
- If Supports(Event,IPTCMouseEvent) Then
- Begin
-  If Supports(Event,IPTCMouseButtonEvent) Then
-  Begin
-   tmpB:=Event as IPTCMouseButtonEvent;
-   x:=tmpB.X;
-   y:=tmpB.Y;
-   button:=GetMouseCode(tmpB.button);
-   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=x; MACClickY:=y; MACClickT:=DeltaTime End;
-   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1  End;
-   MACMouseX:=x;
-   MACMouseY:=y;
-  End
-  Else
-  Begin
-   tmpM:=Event as IPTCMouseEvent;
-   tmpM:=Event as IPTCMouseEvent;
-   x:=tmpM.X;
-   y:=tmpM.Y;
-   button:=GetMouseCode(tmpM.ButtonState);
-   MACMouseX:=x;
-   MACMouseY:=y;
-  End;
-  Exit(True)
- End;
- Exit(False)
-End;
+Begin Exit(TestMouse(MAC,x,y,button)) ENd;
 
-Function GetMouse(Var E:SAMouseEvent):Boolean;
+Function GetMouse(Var MAC:SAMACEvent;Var E:SAMouseEvent):Boolean;
 Var
  TmpB:IPTCMouseButtonEvent;
  tmpM:IPTCMouseEvent;
 Begin
+ With MAC Do Begin
  FillChar(E,Sizeof(E),0);
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,True,[PTCMouseEvent,PTCCloseEvent]);
@@ -1011,37 +1043,42 @@ Begin
   If Supports(Event,IPTCMouseButtonEvent) Then
   Begin
    tmpB:=Event as IPTCMouseButtonEvent;
-   E.x:=tmpB.X;
-   E.y:=tmpB.Y;
+   E.x:=tmpB.Y;
+   E.y:=tmpB.X;
    E.button:=GetMouseCode(tmpB.button);
    E.press:=tmpB.press;
    E.release:=tmpB.release;
-   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=E.x; MACClickY:=E.y; MACClickT:=DeltaTime End;
-   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1  End;
-   MACMouseX:=E.x;
-   MACMouseY:=E.y;
+   If tmpB.Press Then Begin MouseDown:=True; MouseClickX:=E.x; MouseClickY:=E.y; MouseClickT:=DeltaTime End;
+   If tmpB.Release Then Begin MouseDown:=False; MouseClickX:=-1; MouseClickY:=-1; MouseClickT:=-1  End;
+   MouseX:=E.x;
+   MouseY:=E.y;
   End
   Else
   Begin
    tmpM:=Event as IPTCMouseEvent;
-   tmpM:=Event as IPTCMouseEvent;
-   E.x:=tmpM.X;
-   E.y:=tmpM.Y;
+   E.x:=tmpM.Y;
+   E.y:=tmpM.X;
    E.button:=GetMouseCode(tmpM.ButtonState);
    E.press:=False;
    E.release:=False;
-   MACMouseX:=E.x;
-   MACMouseY:=E.y;
+   MouseX:=E.x;
+   MouseY:=E.y;
   End
  End;
  Exit(True)
+ End
 End;
 
-Function TestMouse(Var E:SAMouseEvent):Boolean;
+Function GetMouse(Var E:SAMouseEvent):Boolean;
+Begin Exit(GetMouse(MAC,E)) End;
+
+
+Function TestMouse(Var MAC:SAMACEvent;Var E:SAMouseEvent):Boolean;
 Var
  TmpB:IPTCMouseButtonEvent;
  tmpM:IPTCMouseEvent;
 Begin
+ With MAC Do Begin
  FillChar(E,Sizeof(E),0);
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,False,[PTCMouseEvent,PTCCloseEvent]);
@@ -1051,37 +1088,43 @@ Begin
   If Supports(Event,IPTCMouseButtonEvent) Then
   Begin
    tmpB:=Event as IPTCMouseButtonEvent;
-   E.x:=tmpB.X;
-   E.y:=tmpB.Y;
+   E.x:=tmpB.Y;
+   E.y:=tmpB.X;
    E.button:=GetMouseCode(tmpB.button);
    E.press:=tmpB.press;
    E.release:=tmpB.release;
-   If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=E.x; MACClickY:=E.y; MACClickT:=DeltaTime End;
-   If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1  End;
-   MACMouseX:=E.x;
-   MACMouseY:=E.y;
+   If tmpB.Press Then Begin MouseDown:=True; MouseClickX:=E.x; MouseClickY:=E.y; MouseClickT:=DeltaTime End;
+   If tmpB.Release Then Begin MouseDown:=False; MouseClickX:=-1; MouseClickY:=-1; MouseClickT:=-1  End;
+   MouseX:=E.x;
+   MouseY:=E.y;
   End
   Else
   Begin
    tmpM:=Event as IPTCMouseEvent;
-   tmpM:=Event as IPTCMouseEvent;
-   E.x:=tmpM.X;
-   E.y:=tmpM.Y;
+   E.x:=tmpM.Y;
+   E.y:=tmpM.X;
    E.button:=GetMouseCode(tmpM.ButtonState);
    E.press:=False;
    E.release:=False;
-   MACMouseX:=E.x;
-   MACMouseY:=E.y;
+   MouseX:=E.x;
+   MouseY:=E.y;
   End;
   Exit(True)
  End;
  Exit(False)
+ End
 End;
 
-Function GetKey(Var Key:Longint):Boolean;
+Function TestMouse(Var E:SAMouseEvent):Boolean;
+Begin Exit(TestMouse(MAC,E)) End;
+
+
+
+Function GetKey(Var MAC:SAMACEvent;Var Key:Longint):Boolean;
 var
  tmpK:IPTCKeyEvent;
 Begin
+ With MAC DO Begin
  Key:=0;
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,True,[PTCKeyEvent,PTCCloseEvent]);
@@ -1089,15 +1132,20 @@ Begin
  if Supports(Event,IPTCKeyEvent) Then
  Begin
   tmpK:=Event as IPTCKeyEvent;
-  key:=tmpK.Code
+  key:=tmpK.Code;
  End;
  Exit(True)
+ End
 End;
 
-Function TestKey(Var Key:Longint):Boolean;
+Function GetKey(Var key:Longint):Boolean;
+Begin Exit(GetKey(MAC,Key)) End;
+
+Function TestKey(Var MAC:SAMACEvent;Var Key:Longint):Boolean;
 var
  tmpK:IPTCKeyEvent;
 Begin
+ With MAC DO Begin
  Key:=0;
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,False,[PTCKeyEvent,PTCCloseEvent]);
@@ -1109,12 +1157,17 @@ Begin
   Exit(True)
  End;
  Exit(False)
+ End
 End;
 
-Function GetKey(var E:SAKeyEvent):Boolean;
+Function TestKey(Var Key:Longint):Boolean;
+Begin Exit(TestKey(MAC,Key)) ENd;
+
+Function GetKey(Var MAC:SAMACEvent;var E:SAKeyEvent):Boolean;
 Var
  TmpK:IPTCKeyEvent;
 Begin
+ With MAC DO Begin
  FillChar(E,Sizeof(E),0);
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,True,[PTCKeyEvent,PTCCloseEvent]);
@@ -1127,15 +1180,20 @@ Begin
   E.release:=tmpK.Release;
   E.shift:=TmpK.Shift;
   E.alt:=TmpK.Alt;
-  E.ctrl:=TmpK.Control
+  E.ctrl:=TmpK.Control;
  End;
  Exit(True)
+ End
 End;
 
-Function TestKey(var E:SAKeyEvent):Boolean;
+Function GetKey(Var E:SAKeyEvent):Boolean;
+Begin Exit(GetKey(MAC,E)) ENd;
+
+Function TestKey(Var MAC:SAMACEvent;var E:SAKeyEvent):Boolean;
 Var
  TmpK:IPTCKeyEvent;
 Begin
+ With MAC Do Begin
  FillChar(E,Sizeof(E),0);
  If Not ConsoleUsing Then Exit(False);
  Console.NextEvent(Event,False,[PTCKeyEvent,PTCCloseEvent]);
@@ -1152,7 +1210,12 @@ Begin
   Exit(True)
  End;
  Exit(False)
+ End
 End;
+
+Function TestKey(Var E:SAKeyEvent):Boolean;
+Begin Exit(TestKey(MAC,E)) End;
+
 
 Function GetKeyPress:Boolean;
 Begin
@@ -1178,11 +1241,11 @@ Begin
  Exit(False)
 End;
 
-Function GetClose(Const LimT,IntT:Int64):Boolean;
+Function GetClose(Const LimT:Int64):Boolean;
 Var StdTim:Int64;
 Begin
  StdTim:=DeltaTime;
- While (ConsoleUsing)And(DeltaTime-StdTim<=LimT) Do Sleep(IntT)
+ While (ConsoleUsing)And(DeltaTime-StdTim<=LimT) Do Sleep(1)
 End;
 
 
@@ -1957,7 +2020,7 @@ begin
  exit((0<x)and(x<=Height)and(0<y)and(y<=Width))
 end;
 
-Function Graph.Recovery(Env:pElement;Below:pGraph):pGraph;
+Function Graph.Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;
 Var Tmp:pGraph;
 begin
  New(Tmp);
@@ -2173,7 +2236,7 @@ begin
  exit(a)
 end;
 
-Function CompressGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+Function CompressGraph.Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;
 var Tmp:pGraph;
 begin
  New(Tmp);
@@ -2343,11 +2406,11 @@ begin
  Exit(Tmp)
 end;
 
-Function GroupGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+Function GroupGraph.Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;
 var Tmp:pGraph;
 Begin
  New(Tmp);
- Tmp^:=GetFrame(DeltaTime-Env^.acts.StdTime);
+ Tmp^:=GetFrame(DeltaTime-Obj^.acts.StdTime);
  Exit(Tmp)
 End;
 
@@ -2555,7 +2618,7 @@ Begin
  Exit(Tmp)
 End;
 
-Function TextGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+Function TextGraph.Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;
 Var
  Tmp:Graph;
  Acs:AnimeObj;
@@ -2565,8 +2628,8 @@ Var
  I,X,Y,ClipX1,ClipY1,ClipX2,ClipY2:Longint;
  hHeight,hWidth,_Sin,_Cos,_hX,_hY:Single;
 Begin
- Acs:=Env^.Role;
- If Env^.Acts.Enable Then Env^.Acts.Apply(@Acs);
+ Acs:=Obj^.Role;
+ If Obj^.Acts.Enable Then Obj^.Acts.Apply(@Acs);
  oSize:=FontSize;
  oRotate:=FontAngle;
  oText:=Text;
@@ -3184,35 +3247,29 @@ begin
  NonEvent:=nil
 end;
 
-procedure AnimeLog.DealMouse(Env:pElement;Below:pGraph;x,y,button:longint;press,release:boolean);
+procedure AnimeLog.DealMouse(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent);
 var
  _inner:shortint;
  tmpobj:AnimeObj;
  tmptag:AnimeTag;
- tmp:SAMouseEvent;
 begin
  if MouseEvent=nil then exit;
- tmpobj:=Env^.Role;
- If Env^.Acts.Enable Then Env^.Acts.Apply(@tmpobj);
- _inner:=ord(tmpobj.inner(y,x)); if _inner<>LastInner then _inner:=_inner or 2;
- tmp.x:=y; tmp.y:=x; tmp.button:=button; tmp.press:=press; tmp.release:=release;
- MouseEvent(Env,Below,Tmp,_inner);
+ tmpobj:=Obj^.Role;
+ If Obj^.Acts.Enable Then Obj^.Acts.Apply(@tmpobj);
+ _inner:=ord(tmpobj.inner(E.x,E.y)); if _inner<>LastInner then _inner:=_inner or 2;
+ MouseEvent(Env,Obj,Below,E,_inner);
  LastInner:=_inner and 1;
 end;
 
-procedure AnimeLog.DealKey(Env:pElement;Below:pGraph;key:longint;press,release,alt,shift,ctrl:Boolean);
-Var
- tmp:SAKeyEvent;
+procedure AnimeLog.DealKey(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAKeyEvent);
 begin
  if KeyEvent=nil then exit;
- tmp.key:=key; tmp.press:=press; tmp.release:=release;
- tmp.alt:=alt; tmp.shift:=shift; tmp.ctrl:=ctrl;
- KeyEvent(Env,Below,Tmp)
+ KeyEvent(Env,Obj,Below,E)
 end;
 
-procedure AnimeLog.DealNon(Env:pElement;Below:pGraph);
+procedure AnimeLog.DealNon(Env:pSAMACEvent;Obj:pElement;Below:pGraph);
 begin
- if NonEvent<>nil then NonEvent(Env,Below)
+ if NonEvent<>nil then NonEvent(Env,Obj,Below)
 end;
 
 //Object-AnimeLog-End;
@@ -3380,6 +3437,9 @@ Begin Exit(Role.Source^.Height) End;
 constructor Stage.Create;
 begin
  Member.Clear;
+ StageMAC:=NULLSAMACEvent;
+ StageBiasX:=0;
+ StageBiasY:=0;
 end;
 
 function Stage.Size:longint;
@@ -3614,7 +3674,7 @@ begin
   end;
  with Tmp do
  begin
-  DTest:=Source^.Recovery(Member.Items[id],@Below);
+  DTest:=Source^.Recovery(@StageMAC,Member.Items[id],@Below);
   if DTest=Nil then Exit;
   DrawObj:=DTest^;
   DrawObj.Reverse(Reverse);
@@ -3626,8 +3686,8 @@ begin
   Opt_Rotate(DrawObj,Rotate);
   BiasX:=BiasX-DrawObj.Height*0.5;
   BiasY:=BiasY-DrawObj.Width *0.5;
-  if tp=-1 then BlendTo(DrawObj,Below,Round(BiasX),Round(BiasY)) else begin
-  DrawTmp:=Below.ColorBlend(DrawObj,Round(BiasX)+1,Round(BiasY)+1,tp);
+  if tp=-1 then BlendTo(DrawObj,Below,Round(BiasX+StageBiasX),Round(BiasY+StageBiasY)) else begin
+  DrawTmp:=Below.ColorBlend(DrawObj,Round(BiasX+StageBiasX),Round(BiasY+StageBiasY),tp);
   BlendTo(DrawTmp,Below,0,0); DrawTmp.Free end;
   DrawObj.Free;
  end;
@@ -3655,9 +3715,9 @@ begin
   end;
  with Tmp do
  begin
-  DTest:=Source^.Recovery(Member.Items[id],@Below);
+  DTest:=Source^.Recovery(@StageMAC,Member.Items[id],@Below);
   if DTest=Nil then Exit;
-  DrawTo(DTest^,Below,Round(BiasX),Round(BiasY));
+  DrawTo(DTest^,Below,Round(BiasX+StageBiasX),Round(BiasY+StageBiasY));
   DTest^.Free
  end
 End;
@@ -3715,41 +3775,41 @@ var
  SAKe:SAKeyEvent;
 begin
  If Not ConsoleUsing Then Exit;
- MACMouseAccept:=False;
- MACKeyAccept:=False;
+ With StageMAC Do Begin
+ MouseAccept:=False;
+ KeyAccept:=False;
  while Console.NextEvent(Event,False,PTCAnyEvent) do
  begin
-  if Supports(Event,IPTCMouseEvent) then
-   begin
+  If Supports(Event,IPTCMouseEvent) Then
+   Begin
     if Supports(Event,IPTCMouseButtonEvent) then
     Begin
      tmpB:=Event as IPTCMouseButtonEvent;
-     SAMe.x:=tmpB.X;
-     SAMe.y:=tmpB.Y;
+     SAMe.x:=Round(tmpB.Y-StageBiasX+1);
+     SAMe.y:=Round(tmpB.X-StageBiasY+1);
      SAMe.button:=GetMouseCode(tmpB.Button);
      SAMe.press:=tmpB.Press;
      SAMe.release:=tmpB.Release;
-     If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=tmpB.x; MACClickY:=tmpB.y; MACClickT:=DeltaTime End;
-     If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1  End;
-     MACMouseX:=tmpB.x;
-     MACMouseY:=tmpB.y;
+     If tmpB.Press Then Begin MouseDown:=True; MouseClickX:=SAMe.x; MouseClickY:=SAMe.y; MouseClickT:=DeltaTime End;
+     If tmpB.Release Then Begin MouseDown:=False; MouseClickX:=-1; MouseClickY:=-1; MouseClickT:=-1  End;
+     MouseX:=SAMe.x;
+     MouseY:=SAMe.y;
     End
     Else
     Begin
      tmpM:=Event as IPTCMouseEvent;
-     SAMe.x:=tmpM.X;
-     SAMe.y:=tmpM.Y;
+     SAMe.x:=Round(tmpM.Y-StageBiasX+1);
+     SAMe.y:=Round(tmpM.X-StageBiasY+1);
      SAMe.button:=GetMouseCode(tmpM.ButtonState);
      SAMe.press:=False;
      SAMe.release:=False;
-     MACMouseX:=tmpM.x;
-     MACMouseY:=tmpM.y;
+     MouseX:=tmpM.x;
+     MouseY:=tmpM.y;
     End;
     for i:=Member.Size Downto 1 do
      if Member.Items[i]^.Role.Visible then
      If Member.Items[i]^.Talk.Enable Then
-      With SAMe Do
-      Member.Items[i]^.Talk.DealMouse(Member.Items[i],Below,x,y,button,press,release)
+      Member.Items[i]^.Talk.DealMouse(@StageMAC,Member.Items[i],Below,SAMe)
    end
   else
   if Supports(Event,IPTCKeyEvent) then
@@ -3764,13 +3824,13 @@ begin
     for i:=Member.Size Downto 1 do
      if Member.Items[i]^.Role.Visible then
      If Member.Items[i]^.Talk.Enable Then
-      With SAKe Do
-      Member.Items[i]^.Talk.DealKey(Member.Items[i],Below,key,press,release,alt,shift,ctrl)
+      Member.Items[i]^.Talk.DealKey(@StageMAC,Member.Items[i],Below,SAKe)
    end;
  end;
  for i:=Member.Size Downto 1 do
  If Member.Items[i]^.Talk.Enable Then
-  Member.Items[i]^.Talk.DealNon(Member.Items[i],Below)
+  Member.Items[i]^.Talk.DealNon(@StageMAC,Member.Items[i],Below)
+ End
 end;
 
 procedure Stage.Communication(Below:pGraph;Const L:EList);
@@ -3783,8 +3843,9 @@ var
  SAKe:SAKeyEvent;
 begin
  If Not ConsoleUsing Then Exit;
- MACMouseAccept:=False;
- MACKeyAccept:=False;
+ With StageMAC Do Begin
+ MouseAccept:=False;
+ KeyAccept:=False;
  For J:=1 to L.Size Do
  begin
   Event:=L[J];
@@ -3793,32 +3854,31 @@ begin
     if Supports(Event,IPTCMouseButtonEvent) then
     Begin
      tmpB:=Event as IPTCMouseButtonEvent;
-     SAMe.x:=tmpB.X;
-     SAMe.y:=tmpB.Y;
+     SAMe.x:=Round(tmpB.Y-StageBiasX+1);
+     SAMe.y:=Round(tmpB.X-StageBiasY+1);
      SAMe.button:=GetMouseCode(tmpB.Button);
      SAMe.press:=tmpB.Press;
      SAMe.release:=tmpB.Release;
-     If tmpB.Press Then Begin MACMouseDown:=True; MACClickX:=tmpB.x; MACClickY:=tmpB.y; MACClickT:=DeltaTime End;
-     If tmpB.Release Then Begin MACMouseDown:=False; MACClickX:=-1; MACClickY:=-1; MACClickT:=-1  End;
-     MACMouseX:=tmpB.x;
-     MACMouseY:=tmpB.y;
+     If tmpB.Press Then Begin MouseDown:=True; MouseClickX:=SAMe.x; MouseClickY:=SAMe.y; MouseClickT:=DeltaTime End;
+     If tmpB.Release Then Begin MouseDown:=False; MouseClickX:=-1; MouseClickY:=-1; MouseClickT:=-1  End;
+     MouseX:=SAMe.x;
+     MouseY:=SAMe.y;
     End
     Else
     Begin
      tmpM:=Event as IPTCMouseEvent;
-     SAMe.x:=tmpM.X;
-     SAMe.y:=tmpM.Y;
+     SAMe.x:=Round(tmpM.Y-StageBiasX+1);
+     SAMe.y:=Round(tmpM.X-StageBiasY+1);
      SAMe.button:=GetMouseCode(tmpM.ButtonState);
      SAMe.press:=False;
      SAMe.release:=False;
-     MACMouseX:=tmpM.x;
-     MACMouseY:=tmpM.y;
+     MouseX:=tmpM.x;
+     MouseY:=tmpM.y;
     End;
     for i:=Member.Size Downto 1 do
      if Member.Items[i]^.Role.Visible then
      If Member.Items[i]^.Talk.Enable Then
-      With SAMe Do
-      Member.Items[i]^.Talk.DealMouse(Member.Items[i],Below,x,y,button,press,release)
+      Member.Items[i]^.Talk.DealMouse(@StageMAC,Member.Items[i],Below,SAMe)
    end
   else
   if Supports(Event,IPTCKeyEvent) then
@@ -3833,13 +3893,13 @@ begin
     for i:=Member.Size Downto 1 do
      if Member.Items[i]^.Role.Visible then
      If Member.Items[i]^.Talk.Enable Then
-      With SAKe Do
-      Member.Items[i]^.Talk.DealKey(Member.Items[i],Below,key,press,release,alt,shift,ctrl)
+      Member.Items[i]^.Talk.DealKey(@StageMAC,Member.Items[i],Below,SAKe)
    end
  end;
  for i:=Member.Size Downto 1 do
  If Member.Items[i]^.Talk.Enable Then
-  Member.Items[i]^.Talk.DealNon(Member.Items[i],Below)
+  Member.Items[i]^.Talk.DealNon(@StageMAC,Member.Items[i],Below)
+ End
 end;
 
 Procedure Stage.Communication;
@@ -3917,10 +3977,7 @@ begin
  ScrWidth:=lpRect.Right-lpRect.Left;
  ScrHeight:=lpRect.Bottom-lpRect.Top;
 
- MACMouseDown:=False;
- MACMouseX:=-1;
- MACMouseY:=-1;
- MACClickX:=-1;
- MACClickY:=-1;
- MACClickT:=-1
+
+ Main.Create;
+
 end.

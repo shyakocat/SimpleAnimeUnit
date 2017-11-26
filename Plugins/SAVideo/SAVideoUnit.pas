@@ -74,7 +74,7 @@ Type
 
 
   Function Reproduce:pBaseGraph;Virtual;
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
  End;
 
 var
@@ -326,7 +326,7 @@ implementation
  End;
 
 
- Function VideoGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+ Function VideoGraph.Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;
  Begin
   Decode;
   If vExchange.Width=0 Then Begin

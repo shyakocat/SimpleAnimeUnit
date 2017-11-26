@@ -64,7 +64,7 @@ Simple Pascal GUI Assistant
 	特殊地，定义`A:array[0..N]of longint`，`A`实质上是一个指针。
 
 	`New(p)`可以新建一个`longint`变量（`Pint`的话是4字节，如果`Pchar`的话是1字节，依此类推），`Dispose(p)`可以销毁一个`longint`变量。
-	
+
 	特别特别要注意的是，之后我也会再三提到。`Dispose(p)`会先调用折析函数，再清理内存空间。同样地，一个函数/过程结束之际所有在函数中开出的对象（即`Object`）都会被销毁，他们的折析函数会被调用，存储在 `VMT`中的虚函数将会被清空。可能导致210错误（对象未初始化）。
 
   - *更新中，更多详细内容建议结合源码理解*
@@ -175,9 +175,9 @@ Simple Pascal GUI Assistant
 
     描述事件发生时当前组合的处理，主要成员有：
 	- `Enable:Boolean`	可用于否
-	- `MouseEvent:MouseProc`	鼠标事件、MouseProc=Procedure(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
-	- `KeyEvent:KeyProc`	键盘事件、KeyProc=Procedure(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
-	- `NonEvent:NonProc`	无事件、NonProc=Procedure(Env:pElement;Below:pGraph);
+	- `MouseEvent:MouseProc`	鼠标事件、MouseProc=Procedure(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+	- `KeyEvent:KeyProc`	键盘事件、KeyProc=Procedure(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAKeyEvent);
+	- `NonEvent:NonProc`	无事件、NonProc=Procedure(Env:pSAMACEvent;Obj:pElement;Below:pGraph);
 
 	`SAMouseEvent`的构造是`{x,y,button:Longint;press,release:Boolean}`，分别表示鼠标的行列坐标、鼠标的按键(1=左键,2=右键,4=中键)、鼠标是否按下、弹起
 

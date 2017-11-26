@@ -20,7 +20,7 @@ Begin
 End;
 
 
-Procedure MouseControl(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
+Procedure MouseControl(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAMouseEvent;inner:ShortInt);
 
  function getTime(Const _t:Real):Ansistring;
  var tmp1,tmp2:Ansistring; t:Longint;
@@ -32,10 +32,11 @@ Procedure MouseControl(Env:pElement;Below:pGraph;Const E:SAMouseEvent;inner:Shor
  End;
 
 Begin
- If MACMouseDown Then
+ If Env^.MouseDown Then
  Begin
   TIM.Create(getTime(a.TimeEnd*(E.Y/Below^.Width)));
   TIM.FontSize:=50;
+  TIM.FOntColor:=Color_LRed;
   TIM.Bold:=True;
   TIM.Update
  End
@@ -44,7 +45,7 @@ Begin
   a.Skip(a.TimeEnd*(E.Y/Below^.Width))
 End;
 
-Procedure KeyControl(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
+Procedure KeyControl(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAKeyEvent);
 Begin
  If (E.Key=32)And(E.Release) Then
   If a.BoolPause Then a.Resume
@@ -54,21 +55,19 @@ End;
 
 Begin
  a.Create;
-// a.Load('Test.mp4');
+ a.Load('Test.mp4');
 // a.Load('Test2.flv');
- a.Load('Test3.mkv');
+// a.Load('Test3.mkv');
+// a.Load('Test4.mov');
 // a.Load('Test5.wmv');
 // a.Load('Test6.webm');
-// a.Resize();
 // a.Width:=760;
 // a.Height:=360
 // a.Free;
-// a.Load('E:\FFOutput\Trouble(Lyrics).mp4');
-// a.Load('E:\FFOutput\Horizon(full).mp4');
  A.Resize(1280,720);
- A.Resize(640,360);
+// A.Resize(640,360);
  Init('SAVTest',a.Width,a.Height);
-// a.Volume(1);
+ a.Volume(1);
  Id:=Main.AddObj(A);
  LG.Create;
  LG.KeyEvent:=@KeyControl;
