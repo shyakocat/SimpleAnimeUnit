@@ -8,6 +8,7 @@ Var
  BoolTf:Boolean=False;
  tf:Real;
  tP,x,y,z:Longint;
+ Path:Ansistring;
 
 
 Procedure CmdInput;
@@ -55,7 +56,10 @@ End;
 
 Begin
  a.Create;
- a.Load('Test.mp4');
+ Path:=SelectFile(sf_Open);
+ If GetFile(Path).Size=0 Then Halt;
+ a.Load(Path);
+// a.Load('Test.mp4');
 // a.Load('Test2.flv');
 // a.Load('Test3.mkv');
 // a.Load('Test4.mov');

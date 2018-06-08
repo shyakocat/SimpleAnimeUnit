@@ -1,6 +1,6 @@
 {$MODE OBJFPC}{$H+}
 {$APPTYPE GUI}
-uses SimpleAnimeUnit2,SAAudioUnit,Math;
+uses SimpleAnimeUnit2,CommonTypeUnit,SAAudioUnit,Math;
 
 Var
  MusicPath,

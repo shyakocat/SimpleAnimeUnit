@@ -28,7 +28,8 @@ Type
   Function Cut:CustomGraph;                         //复制
 //SA2库中，虚函数在BaseGraph中是Abstract（抽象）的，所以BaseGraph不会对其有实现，需要在子类中实现！
   Function Reproduce:pBaseGraph;Virtual;                        //复制，但返回的是指针
-  Function Recovery(Env:pElement;Below:pGraph):pGraph;Virtual;  //还原，Env表示Element（元素，即AnimeObj+AnimeTag+AnimeLog），Below表示下垫的图片
+  Function Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;Virtual;
+                                                                //还原，Env表示Element（元素，即AnimeObj+AnimeTag+AnimeLog），Below表示下垫的图片
                                                                 //Recovery要求把CustomGraph根据需要的信息制作成Graph，并返回pGraph（Graph的指针）
  End;
 
@@ -108,7 +109,7 @@ Type
   Exit(Tmp)
  End;
 
- Function CustomGraph.Recovery(Env:pElement;Below:pGraph):pGraph;
+ Function CustomGraph.Recovery(Env:pSAMACEvent;Obj:pElement;Below:pGraph):pGraph;
  Var Tmp:^Graph;
  Begin
   New(Tmp);
@@ -129,7 +130,7 @@ Var
  FieldLog:AnimeLog;
  StopGame:Boolean=False;
 
- Procedure KeyDeal(Env:pElement;Below:pGraph;Const E:SAKeyEvent);
+ procedure KeyDeal(Env:pSAMACEvent;Obj:pElement;Below:pGraph;Const E:SAKeyEvent);
  Begin
   if (E.key=32)and(E.release) then StopGame:=Not StopGame Else
   if E.key=27 then Halt
